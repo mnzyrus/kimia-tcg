@@ -32,7 +32,17 @@ export interface Card {
     source?: string;
     tcgEffect?: string;
     isBuffer?: boolean;
+    bufferMultiplier?: number; // e.g. 0.01 for strong buffer
+    bufferDuration?: number;   // Turns it lasts
     reactionConfig?: ReactionConfig;
+}
+
+export interface ActiveBuffer {
+    id: string;
+    name: string;
+    multiplier: number;
+    turnsRemaining: number;
+    description: string;
 }
 
 export interface ReactionEntry {
@@ -56,7 +66,16 @@ export interface LogEntry {
     type?: 'draw' | 'attack' | 'synthesize' | 'trap' | 'system' | 'info';
     // Legacy support (optional)
     message?: string;
-    calculation?: string;
+    calculation?: string; // Legacy string
+    calculationData?: CalculationData; // New structured data
+}
+
+export interface CalculationData {
+    equation: string;      // e.g. "HCl -> H+ + Cl-"
+    concentration: string; // e.g. "[H+] = 1.0e-7 M"
+    formula: string;       // e.g. "pH = -log[H+]"
+    steps: string[];       // e.g. ["-log(1.0e-7)", "-(-7)", "pH = 7.0"]
+    finalResult: string;   // e.g. "7.0"
 }
 
 export interface Player {
@@ -78,6 +97,8 @@ export interface Player {
     trapSlot: Card | null;
     isCatalystActive?: boolean;
     drawsThisTurn?: number;
+    ph: number;
+    activeBuffers: ActiveBuffer[];
 }
 
 export interface VisualEffect {
@@ -98,7 +119,6 @@ export interface GameState {
     winner?: 'player1' | 'player2';
     gameLog: LogEntry[];
     activeVisualEffects: VisualEffect[];
-    makmalPH: number;
 }
 
 export interface ReactionResult {
@@ -112,4 +132,5 @@ export interface ReactionResult {
     forcePH?: number;
     opponentDiscardCount?: number;
     resourceDrain?: { e: number, m: number };
+    isBuffer?: boolean;
 }

@@ -1,6 +1,6 @@
 
 import React, { useMemo, useRef, useEffect } from 'react';
-import { LogEntry } from '@/types';
+import { LogEntry, CalculationData } from '@/types';
 import { Eye, EyeOff, Zap, Beaker, Heart, Calculator, Activity, Lightbulb } from 'lucide-react';
 import { PH_COLOR_MAP } from '@/lib/gameData';
 import { getPHDetails } from '@/lib/gameLogic';
@@ -52,11 +52,33 @@ export function ActionLog({ actions, myId }: { actions: LogEntry[], myId: string
     );
 }
 
-export function PHMeterComponent({ makmalPH }: { makmalPH: number }) {
+export function PHMeterComponent({ makmalPH, calculationData, onAnimationComplete }: { makmalPH: number, calculationData?: CalculationData | null, onAnimationComplete?: () => void }) {
     const details = useMemo(() => getPHDetails(makmalPH), [makmalPH]);
     const percent = (makmalPH / 14) * 100;
+    const [step, setStep] = React.useState(0);
+
+    // Animation Logic
+    useEffect(() => {
+        if (!calculationData) {
+            setStep(0);
+            return;
+        }
+
+        const timings = [1000, 2500, 4000, 5500];
+        const timers = timings.map((t, i) => setTimeout(() => setStep(i + 1), t));
+
+        const finalTimer = setTimeout(() => {
+            if (onAnimationComplete) onAnimationComplete();
+        }, 8000);
+
+        return () => {
+            timers.forEach(clearTimeout);
+            clearTimeout(finalTimer);
+        };
+    }, [calculationData, onAnimationComplete]);
+
     return (
-        <div className="bg-white rounded-xl p-4 shadow-lg border border-slate-200 text-slate-800">
+        <div className={`bg-white rounded-xl p-4 shadow-lg border border-slate-200 text-slate-800 transition-all duration-500 ease-in-out ${calculationData ? 'min-h-[400px]' : 'min-h-min'}`}>
             <div className="flex justify-between items-center mb-2">
                 <h3 className="font-bold flex items-center gap-2 text-indigo-700"><Activity className="w-5 h-5" /> Meter pH Makmal</h3>
                 <span className="text-xl font-black" style={{ color: details.color }}>pH {details.clampedPH}</span>
@@ -67,16 +89,72 @@ export function PHMeterComponent({ makmalPH }: { makmalPH: number }) {
                 </div>
                 <div className="absolute top-0 bottom-0 w-1 bg-black border-x border-white transition-all duration-500" style={{ left: `${percent}%` }} />
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-slate-100 p-2 rounded border border-slate-200">
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-slate-100 p-2 rounded border border-slate-200 mb-2">
                 <div>[H⁺]: <span className="font-bold text-red-600">{details.hPlus}</span></div>
                 <div className="text-right">[OH⁻]: <span className="font-bold text-blue-600">{details.ohMinus}</span></div>
             </div>
-            <div className="mt-2 text-xs bg-indigo-50 text-indigo-800 p-2 rounded border border-indigo-200 flex items-center gap-2">
-                <Calculator className="w-3 h-3 mr-1" /><span>Formula: pH = -log[H⁺]</span>
+
+            {/* EXPANDABLE CALCULATION SECTION */}
+            <div className={`overflow-hidden transition-all duration-700 ease-in-out ${calculationData ? 'max-h-[500px] opacity-100' : 'max-h-10'}`}>
+
+                {!calculationData ? (
+                    <div className="text-xs bg-indigo-50 text-indigo-800 p-2 rounded border border-indigo-200 flex items-center gap-2">
+                        <Calculator className="w-3 h-3 mr-1" /><span>Formula: pH = -log[H⁺]</span>
+                    </div>
+                ) : (
+                    <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-3 font-mono text-xs">
+                        <div className="flex items-center gap-2 text-indigo-600 font-bold border-b border-slate-200 pb-1 mb-2">
+                            <Calculator className="w-3 h-3" />
+                            <span>Pengiraan pH</span>
+                            {/* Progress Dots */}
+                            <div className="flex gap-1 ml-auto">
+                                {[1, 2, 3, 4].map(i => (
+                                    <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${step >= i ? 'bg-indigo-500' : 'bg-slate-300'}`} />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Step 1 */}
+                        <div className={`transition-all duration-500 ${step >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
+                            <p className="text-slate-500 text-[10px] mb-0.5">Langkah 1: Persamaan</p>
+                            <div className="bg-white p-1.5 rounded border-l-2 border-blue-400 shadow-sm">
+                                <code className="text-blue-700">{calculationData.equation}</code>
+                            </div>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className={`transition-all duration-500 delay-100 ${step >= 2 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
+                            <p className="text-slate-500 text-[10px] mb-0.5">Langkah 2: Kepekatan</p>
+                            <div className="bg-white p-1.5 rounded border-l-2 border-green-500 shadow-sm flex justify-between">
+                                <span className="text-green-700">{calculationData.concentration}</span>
+                            </div>
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className={`transition-all duration-500 delay-200 ${step >= 3 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
+                            <p className="text-slate-500 text-[10px] mb-0.5">Langkah 3: Kira</p>
+                            <div className="bg-white p-1.5 rounded border-l-2 border-yellow-500 shadow-sm space-y-1">
+                                <div className="text-slate-500">{calculationData.formula}</div>
+                                {calculationData.steps.map((s, i) => (
+                                    <div key={i} className="text-slate-700 pl-2 border-l border-slate-200">{s}</div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Step 4 */}
+                        <div className={`mt-2 pt-2 border-t border-slate-200 flex justify-between items-center transition-all duration-500 ${step >= 4 ? 'opacity-100' : 'opacity-0'}`}>
+                            <span className="text-slate-400 font-bold uppercase text-[10px]">Jawapan</span>
+                            <span className="text-xl font-black text-indigo-700">{calculationData.finalResult}</span>
+                        </div>
+                    </div>
+                )}
             </div>
-            <div className="mt-1 text-xs bg-slate-100 text-slate-600 p-2 rounded border border-slate-200 flex items-center gap-2">
+
+            <div className="mt-2 text-xs bg-slate-100 text-slate-600 p-2 rounded border border-slate-200 flex items-center gap-2">
                 <Lightbulb className="w-4 h-4 flex-shrink-0" /><span>{details.effect}</span>
             </div>
         </div>
     );
 }
+// Removed standalone AnimatedPHDisplay
+

@@ -3,9 +3,43 @@ import React from 'react';
 import { VisualEffect } from '@/types';
 import { Sparkles, Skull } from 'lucide-react';
 
-export function VisualEffectsLayer({ effects }: { effects: VisualEffect[] }) {
+export function VisualEffectsLayer({ effects, currentPH = 7.0 }: { effects: VisualEffect[], currentPH?: number }) {
+
+    // --- pH VIGNETTE LOGIC ---
+    let vignetteColor = 'transparent'; // Default
+    let opacity = 0;
+    let isCritical = false;
+
+    // Acidic Range (pH < 4) -> Red
+    if (currentPH < 4.0) {
+        vignetteColor = 'rgba(220, 38, 38)'; // Red-600 base
+        // Intensity scaling: pH 4 -> 0%, pH 0 -> 80%
+        // Max opacity 0.6 to not block view
+        opacity = 0.6 * ((4.0 - currentPH) / 4.0);
+        if (currentPH < 2.0) isCritical = true;
+    }
+    // Basic Range (pH > 10) -> Blue/Purple
+    else if (currentPH > 10.0) {
+        vignetteColor = 'rgba(79, 70, 229)'; // Indigo-600 base
+        // Intensity scaling: pH 10 -> 0%, pH 14 -> 80%
+        opacity = 0.6 * ((currentPH - 10.0) / 4.0);
+        if (currentPH > 12.0) isCritical = true;
+    }
+
     return (
         <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
+
+            {/* PERSISTENT PH VIGNETTE */}
+            {opacity > 0 && (
+                <div
+                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${isCritical ? 'animate-pulse' : ''}`}
+                    style={{
+                        background: `radial-gradient(circle at center, transparent 30%, ${vignetteColor} 100%)`,
+                        opacity: opacity
+                    }}
+                />
+            )}
+
             {effects.map((effect) => (
                 <div
                     key={effect.id}

@@ -1,4 +1,4 @@
-import { Card, GameState, LogEntry, Player, ReactionResult } from '@/types';
+import { ActiveBuffer, CalculationData, Card, GameState, LogEntry, Player, ReactionResult } from '@/types';
 import { elementCards, garamCards, PH_COLOR_MAP, sintesisCards, tacticalCards } from './gameData';
 
 export const formatMolarityCalculation = (pH: number) => {
@@ -15,6 +15,57 @@ export function getPHDetails(pH: number) {
     return { clampedPH: clampedPH.toFixed(1), color: category.color, name: category.name, effect: category.effect, hPlus: formatConc(hPlus) + ' M', ohMinus: formatConc(ohMinus) + ' M' };
 }
 
+export function calculateBufferedPHChange(initialChange: number, activeBuffers: ActiveBuffer[]): { finalChange: number, calculationSteps: string[], calculationData: CalculationData } {
+    if (initialChange === 0) return {
+        finalChange: 0,
+        calculationSteps: ["Tiada perubahan pH."],
+        calculationData: {
+            equation: "Neutral",
+            concentration: "No Change",
+            formula: "pH = Constant",
+            steps: ["No Reaction"],
+            finalResult: "No Change"
+        }
+    };
+
+    const steps: string[] = [];
+    let multiplier = 1.0;
+
+    steps.push(`Perubahan pH Asal: ${initialChange > 0 ? '+' : ''}${initialChange.toFixed(2)}`);
+
+    if (activeBuffers.length > 0) {
+        // Apply strongest buffer (lowest multiplier) or multiply them? User said: "time the multiplier = final ph change".
+        // Let's multiply them for stacking effect, but usually buffers don't stack infinitely.
+        // User: "multiplier of each buffer salt... change the default multiplier of 1 to the multipier of the buffer."
+        // Let's assume we take the BEST (lowest) multiplier if multiple exist, or multiply.
+        // Let's multiply for now as it's simpler mechanically.
+
+        activeBuffers.forEach(buff => {
+            multiplier *= buff.multiplier;
+            steps.push(`Buffer Aktif (${buff.name}): x${buff.multiplier}`);
+        });
+    } else {
+        steps.push(`Tiada Buffer Aktif: x1.0`);
+    }
+
+    const finalChange = initialChange * multiplier;
+    steps.push(`Pengiraan Akhir: ${initialChange.toFixed(2)} x ${multiplier.toFixed(4)} = ${finalChange.toFixed(4)}`);
+    steps.push(`Perubahan pH Sebenar: ${finalChange > 0 ? '+' : ''}${finalChange.toFixed(4)}`);
+
+    const calculationData: CalculationData = {
+        equation: activeBuffers.length > 0 ? `Buffer: ${activeBuffers.map(b => b.name).join(', ')}` : "Tanpa Buffer",
+        concentration: `ΔpH Awal = ${initialChange.toFixed(3)}`,
+        formula: `ΔpH_Final = ΔpH_Initial × Multiplier`,
+        steps: [
+            `Multiplier = ${multiplier.toFixed(4)}`,
+            `ΔpH = ${initialChange.toFixed(3)} × ${multiplier.toFixed(4)}`,
+        ],
+        finalResult: `ΔpH = ${finalChange.toFixed(4)}`
+    };
+
+    return { finalChange, calculationSteps: steps, calculationData };
+}
+
 export function applySaltEffect(card: Card): ReactionResult {
     // Default fallback
     const result: ReactionResult = {
@@ -22,8 +73,15 @@ export function applySaltEffect(card: Card): ReactionResult {
         recoilDamage: 0,
         message: `Garam ${card.name} digunakan!`,
         effectType: 'reaction_good',
-        pHChange: 0
+        pHChange: 0,
+        isBuffer: card.isBuffer // Pass through
     };
+
+    if (card.isBuffer) {
+        result.message = `BUFFER DIAKTIFKAN: ${card.name}! Rintangan terhadap perubahan pH meningkat.`;
+        result.effectType = 'reaction_good';
+        return result;
+    }
 
     // Use reactionConfig if available (Data-Driven)
     if (card.reactionConfig) {
@@ -177,7 +235,12 @@ export function calculateReaction(attackingCard: Card, defendingCard: Card): Rea
     if (defendingCard.type === 'Trap') return { damageDealt: 0, recoilDamage: 0, message: `PERANGKAP DIAKTIFKAN!`, effectType: 'reaction_good', pHChange: 0 };
 
     // Direct Hit
-    return { damageDealt: attackPower, recoilDamage: 0, message: `SERANGAN TERUS!`, effectType: 'damage', pHChange: 0 };
+    let directPHChange = 0;
+    if (attackType === 'Asid') directPHChange = -0.5;
+    if (attackType === 'Bes') directPHChange = 0.5;
+    if (attackTier <= 0.5 && directPHChange !== 0) directPHChange *= 2; // Stronger effect for Tier 0/0.5
+
+    return { damageDealt: attackPower, recoilDamage: 0, message: `SERANGAN TERUS!`, effectType: 'damage', pHChange: directPHChange };
 }
 
 export function createDeck(): Card[] {
@@ -193,7 +256,7 @@ export function createDeck(): Card[] {
     }
 
     // Explicit counts from Reference Code (Reference Logic line 83-93 approx)
-    add('el-h', 8, 'H');
+    add('el-h', 24, 'H'); // Increased to be more than O (22)
     add('el-o', 22, 'O'); // 6 + 16 (Reference specific)
     add('el-c', 4, 'C');
     add('el-na', 4, 'Na');
@@ -216,12 +279,12 @@ export function initializeGame(p1Name: string, p2Name: string): GameState {
     const player1: Player = {
         id: 'player1', name: p1Name || 'Pemain 1', hp: 1000, maxHP: 1000, currentE: 4, maxE: 10, currentM: 15, maxM: 20,
         hand: [], makmal: [], synthesisZone: [], bukuFormula: [...sintesisCards], timbunanBuang: [], statusEffects: [], deck: p1Deck, trapSlot: null,
-        isCatalystActive: false, drawsThisTurn: 0
+        isCatalystActive: false, drawsThisTurn: 0, ph: 7.0, activeBuffers: []
     };
     const player2: Player = {
         id: 'player2', name: p2Name || 'Pemain 2', hp: 1000, maxHP: 1000, currentE: 4, maxE: 10, currentM: 15, maxM: 20,
         hand: [], makmal: [], synthesisZone: [], bukuFormula: [...sintesisCards], timbunanBuang: [], statusEffects: [], deck: p2Deck, trapSlot: null,
-        isCatalystActive: false, drawsThisTurn: 0
+        isCatalystActive: false, drawsThisTurn: 0, ph: 7.0, activeBuffers: []
     };
     for (let i = 0; i < 10; i++) { if (player1.deck.length) player1.hand.push(player1.deck.pop()!); if (player2.deck.length) player2.hand.push(player2.deck.pop()!); }
 
@@ -232,5 +295,5 @@ export function initializeGame(p1Name: string, p2Name: string): GameState {
         player2.hand.push({ ...hCard, id: `H-init-p2-${Date.now()}` });
     }
 
-    return { currentPlayer: 'player1', player1, player2, turnNumber: 1, gameLog: [{ id: 0, message: 'Permainan bermula!', privateMsg: 'Permainan bermula!', publicMsg: 'Permainan bermula!', actorId: 'system', turn: 0 }], activeVisualEffects: [], makmalPH: 7.0 };
+    return { currentPlayer: 'player1', player1, player2, turnNumber: 1, gameLog: [{ id: 0, message: 'Permainan bermula!', privateMsg: 'Permainan bermula!', publicMsg: 'Permainan bermula!', actorId: 'system', turn: 0 }], activeVisualEffects: [] };
 }

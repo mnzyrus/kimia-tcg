@@ -86,33 +86,74 @@ export function AskChemistModal({ onClose, gameState }: { onClose: () => void, g
 // --- TUTORIAL MODAL ---
 export function TutorialModal({ onClose }: { onClose: () => void }) {
     const [step, setStep] = useState(1);
-    const totalSteps = 4;
+    const totalSteps = 8;
 
     const content = [
-        { title: "Selamat Datang ke Kimia TCG!", text: "Permainan kad strategi berasaskan kimia sebenar. Kalahkan lawan dengan mengurangkan HP mereka kepada 0." },
-        { title: "Sintesis & Tenaga", text: "Gunakan Tenaga (E) untuk mainkan kad. Gabungkan Unsur di Kebuk Sintesis untuk hasilkan Sebatian (Asid/Bes) yang kuat!" },
-        { title: "Reaksi Kimia", text: "Asid lawan Bes = Peneutralan (Garam). Ini boleh hasilkan damage atau heal bergantung pada jenis garam yang terhasil." },
-        { title: "Jisim (M)", text: "Setiap Unsur ada Jisim. Kumpul Jisim secukupnya untuk sintesis sebatian yang lebih besar dan kuat." }
+        {
+            title: "Selamat Datang ke Kimia TCG",
+            text: "Anda adalah Ahli Kimia yang bertarung di makmal. Objektif: Kalahkan lawan dengan menjadikan solution mereka terlalu Asid (pH 0) atau terlalu Beralkali (pH 14), atau kurangkan HP mereka ke 0."
+        },
+        {
+            title: "Struktur Giliran (Turn)",
+            text: "Setiap giliran bermula dengan fasa 'Draw' (2 kad). Anda boleh 'Sintesis' atau 'Serang' seberapa banyak kali selagi ada Tenaga. Tamatkan giliran bila tiada langkah."
+        },
+        {
+            title: "Sumber: Tenaga & Jisim",
+            text: "Tenaga (E): Diperlukan untuk 'Sintesis' sebatian. Jisim (M): Diperlukan untuk membina kad yang lebih kuat. Kumpul unsur asas untuk dapatkan sumber ini."
+        },
+        {
+            title: "Sintesis Sebatian",
+            text: "Gabungkan kad Unsur (H, O, Na, Cl, dll) di Kebuk Sintesis. Resipi yang betul menghasilkan Asid (Serangan), Bes (Pertahanan/Serangan), atau Garam (Kesan Khas)."
+        },
+        {
+            title: "Mekanik pH: Serangan",
+            text: "Gunakan Asid (H+) untuk menurunkan pH lawan. Gunakan Bes (OH-) untuk menaikkan pH lawan. Perubahan pH dikira menggunakan formula logaritma sebenar!"
+        },
+        {
+            title: "Mekanik pH: Buffer",
+            text: "Takut diserang? Hasilkan Garam Buffer (cth: Ammonium Asetat). Buffer akan mengurangkan perubahan pH secara drastik (sehingga 90% tahanan) pabila anda diserang."
+        },
+        {
+            title: "Reaksi Peneutralan",
+            text: "Kalau lawan serang dengan Asid, dan anda ada Bes aktif (atau sebaliknya), 'Peneutralan' berlaku! Ini menghasilkan Garam baharu dan air, membatalkan serangan."
+        },
+        {
+            title: "Strategi Menang",
+            text: "Uruskan pH anda berhampiran 7.0. Kumpul kad 'Tier Tinggi' untuk serangan maut. Jangan biarkan masa tamat!"
+        }
     ];
 
     return (
-        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4">
-            <div className="bg-slate-900 w-full max-w-lg rounded-2xl border border-indigo-500/30 p-8 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-slate-900 w-full max-w-2xl rounded-2xl border border-indigo-500/30 p-8 shadow-2xl relative overflow-hidden flex flex-col h-[60vh]">
                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
-                <div className="mb-6">
-                    <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Tutorial {step}/{totalSteps}</span>
-                    <h2 className="text-3xl font-black text-white mt-2 mb-4">{content[step - 1].title}</h2>
-                    <p className="text-lg text-slate-300 leading-relaxed">{content[step - 1].text}</p>
+
+                <div className="flex-1 flex flex-col justify-center items-center text-center">
+                    <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4 border border-indigo-500/30 px-3 py-1 rounded-full">
+                        Langkah {step} dari {totalSteps}
+                    </span>
+                    <h2 className="text-4xl font-black text-white mb-6 tracking-tight">{content[step - 1].title}</h2>
+                    <p className="text-xl text-slate-300 leading-relaxed max-w-lg mx-auto">
+                        {content[step - 1].text}
+                    </p>
                 </div>
-                <div className="flex justify-between items-center mt-8">
-                    <div className="flex gap-1">
+
+                <div className="mt-8 pt-6 border-t border-slate-800 flex justify-between items-center">
+                    <div className="flex gap-1.5">
                         {Array.from({ length: totalSteps }).map((_, i) => (
-                            <div key={i} className={`h-1.5 rounded-full transition-all ${i + 1 === step ? 'w-8 bg-indigo-500' : 'w-2 bg-slate-700'}`} />
+                            <div key={i} className={`h-2 rounded-full transition-all duration-300 ${i + 1 === step ? 'w-12 bg-indigo-500' : 'w-2 bg-slate-700'}`} />
                         ))}
                     </div>
-                    <GameButton onClick={() => step < totalSteps ? setStep(s => s + 1) : onClose()}>
-                        {step < totalSteps ? "Seterusnya" : "Mula Main!"}
-                    </GameButton>
+                    <div className="flex gap-3">
+                        {step > 1 && (
+                            <button onClick={() => setStep(s => s - 1)} className="px-6 py-3 rounded-xl font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors">
+                                Kembali
+                            </button>
+                        )}
+                        <GameButton onClick={() => step < totalSteps ? setStep(s => s + 1) : onClose()} className="px-8 py-3 text-lg">
+                            {step < totalSteps ? "Seterusnya" : "Faham & Mula!"}
+                        </GameButton>
+                    </div>
                 </div>
             </div>
         </div>

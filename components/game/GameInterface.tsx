@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { Card, GameState, Player, LogEntry, VisualEffect, ReactionResult, CardType } from '@/types';
-import { calculateReaction, createDeck, initializeGame, applySaltEffect } from '@/lib/gameLogic';
+import { ActiveBuffer, CalculationData, Card, GameState, Player, LogEntry, VisualEffect, ReactionResult, CardType } from '@/types';
+import { calculateReaction, createDeck, initializeGame, applySaltEffect, calculateBufferedPHChange } from '@/lib/gameLogic';
 import { elementCards, sintesisCards, garamCards, REACTION_LIBRARY, PH_COLOR_MAP } from '@/lib/gameData';
 import { soundManager } from '@/lib/audio';
 import { X, Send, Bot, Play, Settings as SettingsIcon, LogOut, Loader2, User, Plus, Trophy, History, FlaskConical, Clock, BookOpen, Sparkles, HelpCircle, ScrollText, SkipForward, Layers, Shield, Recycle } from 'lucide-react';
@@ -39,6 +39,7 @@ export default function GameInterface() {
     const [showLibrary, setShowLibrary] = useState(false);
     const [showTutorial, setShowTutorial] = useState(false);
     const [showAskChemist, setShowAskChemist] = useState(false);
+    const [activeCalculation, setActiveCalculation] = useState<CalculationData | null>(null);
     const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
     const [lobbyError, setLobbyError] = useState<string>('');
 
@@ -236,7 +237,7 @@ export default function GameInterface() {
     };
 
     // --- HELPERS ---
-    const createLog = (turn: number, privateMsg: string, publicMsg?: string, actorId: 'player1' | 'player2' | 'system' = 'system', type: any = 'info', calculation?: string): LogEntry => {
+    const createLog = (turn: number, privateMsg: string, publicMsg?: string, actorId: 'player1' | 'player2' | 'system' = 'system', type: any = 'info', calculation?: string, calculationData?: CalculationData): LogEntry => {
         return {
             id: Date.now() + Math.random(),
             turn,
@@ -245,6 +246,7 @@ export default function GameInterface() {
             actorId,
             type,
             calculation,
+            calculationData,
             message: privateMsg // Legacy support
         };
     };
@@ -334,8 +336,35 @@ export default function GameInterface() {
                 // Deck and Hand unchanged here (handled in processAITurn on turn increment)
                 currentE: Math.min(gameState.player1.maxE, gameState.player1.currentE + 2),
                 currentM: Math.min(gameState.player1.maxM, gameState.player1.currentM + 1),
-                drawsThisTurn: 0 // Reset counter
+                // Reset counters
+                drawsThisTurn: 0
             };
+
+            // --- PASSIVE RESOURCE BONUS (pH Stability) ---
+            // "if ph is perfectly neutral (7.0) ... +2 E and +2 M"
+            // "if around 6 to 8 excluding 7 ... +1 E and +1 M"
+            let bonusE = 0;
+            let bonusM = 0;
+            let bonusMsg = '';
+
+            const currentPH = gameState.player1.ph;
+
+            if (currentPH === 7.0) {
+                bonusE = 2;
+                bonusM = 2;
+                bonusMsg = 'Stabiliti pH Sempurna (7.0): Bonus +2 E & +2 M!';
+            } else if (currentPH >= 6.0 && currentPH <= 8.0) {
+                bonusE = 1;
+                bonusM = 1;
+                bonusMsg = 'Stabiliti pH Baik: Bonus +1 E & +1 M.';
+            }
+
+            if (bonusE > 0) {
+                newPlayer1.currentE = Math.min(newPlayer1.maxE, newPlayer1.currentE + bonusE);
+                newPlayer1.currentM = Math.min(newPlayer1.maxM, newPlayer1.currentM + bonusM);
+                setNotification({ message: bonusMsg, type: 'success' });
+            }
+            // ---------------------------------------------
             const newPlayer2 = {
                 ...gameState.player2,
                 drawsThisTurn: 0 // Reset counter
@@ -587,6 +616,30 @@ export default function GameInterface() {
                 result = calculateReaction(card, defendingCard);
             }
 
+            // --- pH DAMAGE MULTIPLIER (Active Vulnerability) ---
+            let pHEffectMultiplier = 1.0;
+            const targetPH = defender.ph;
+
+            // Acidic Vulnerability (Low pH takes more Acid Dmg)
+            if (card.sintesisType === 'Asid') { // Assuming Card Type check or based on logic? `calculateReaction` handles neutralization. 
+                // If effective attack is Acidic (Acid vs Neutral/Acid):
+                if (targetPH < 1.0) pHEffectMultiplier = 2.0;
+                else if (targetPH >= 1.0 && targetPH < 2.0) pHEffectMultiplier = 1.5;
+                else if (targetPH >= 2.0 && targetPH < 3.0) pHEffectMultiplier = 1.25;
+            }
+            // Basic Vulnerability (High pH takes more Base Dmg)
+            else if (card.sintesisType === 'Bes') {
+                if (targetPH > 13.0) pHEffectMultiplier = 2.0;
+                else if (targetPH > 12.0 && targetPH <= 13.0) pHEffectMultiplier = 1.5;
+                else if (targetPH > 11.0 && targetPH <= 12.0) pHEffectMultiplier = 1.25;
+            }
+
+            if (pHEffectMultiplier > 1.0) {
+                result.damageDealt = Math.floor(result.damageDealt * pHEffectMultiplier);
+                result.message += ` (VULNERABLE x${pHEffectMultiplier}!)`;
+            }
+            // ---------------------------------------------------
+
             let newOpponentHP = defender.hp - result.damageDealt;
             let newSelfHP = attacker.hp - result.recoilDamage;
 
@@ -625,9 +678,64 @@ export default function GameInterface() {
                 gameState.gameLog = [...gameState.gameLog, log];
             }
 
-            const mainLog = createLog(gameState.turnNumber, card.type === 'Garam' ? `GARAM: ${result.message}` : `REAKSI: ${result.message}`, card.type === 'Garam' ? `GARAM: ${result.message}` : `REAKSI: ${result.message}`, 'player1', 'attack', result.damageDealt ? `Kerosakan: ${result.damageDealt}` : '');
+            let calcLogString = '';
+            let finalPHChange = result.pHChange || 0;
 
-            const newState = { ...gameState, player1: newAttacker, player2: newDefender, makmalPH: Math.max(0, Math.min(14, gameState.makmalPH + (result.pHChange || 0))), gameLog: [...gameState.gameLog, mainLog] };
+            // HANDLE BUFFER ACTIVATION (Target: Defender or Attacker? Usually Defensive Buffers on Defender, but logic says Card Effect. Buffer cards usually 'Sintesis' placed on field? Or executed? Card.type is 'Sintesis' or 'Garam'. If it's a buffer, it helps owner?
+            // "Menentang perubahan pH". If I play it, it protects ME.
+            // But handleAttack is "I attack YOU". 
+            // If Result.isBuffer, is it a defensive Reaction from Trap? 
+            // Or is it a Salt produced that gives Buffer?
+            // If Attacker attacks, and result is Buffer...
+            // Let's assume Buffer is a status on the DEFENDER (who survived/reacted?).
+            // Actually, if I play "Garam Buffer", I want it on ME.
+            // But handleAttack is primarily Attack.
+            // Let's look at Game Logic: "Buffer activated" usually from specific cards.
+            // If I attack, and result says "Buffer", maybe I gained it?
+            // For now, let's attach Buffer to DEFENDER if it's a defensive reaction, or ATTACKER if it's a self-buff?
+            // Simplified: Attach to Defender for now (Reaction-based).
+
+            let newDefenderBuffers = [...(defender.activeBuffers || [])];
+            if (result.isBuffer) {
+                const buffId = `buff-${Date.now()}`;
+                newDefenderBuffers.push({
+                    id: buffId,
+                    name: card.name,
+                    multiplier: card.bufferMultiplier || 0.1,
+                    turnsRemaining: card.bufferDuration || 3,
+                    description: `Menentang perubahan pH (x${card.bufferMultiplier || 0.1})`
+                });
+                gameState.gameLog.push(createLog(gameState.turnNumber, `BUFFER DIAKTIFKAN: ${card.name}`, `BUFFER DIAKTIFKAN: ${card.name}`, 'player2', 'info'));
+            }
+
+            // CALCULATE PH CHANGE WITH BUFFERS (For Defender)
+            if (finalPHChange !== 0) {
+                const bufferedCalc = calculateBufferedPHChange(finalPHChange, newDefenderBuffers);
+                finalPHChange = bufferedCalc.finalChange;
+                calcLogString = bufferedCalc.calculationSteps.join('\n');
+                // No Animation for Player Attack
+            }
+
+            const mainLog = createLog(
+                gameState.turnNumber,
+                card.type === 'Garam' ? `GARAM: ${result.message}` : `REAKSI: ${result.message}`,
+                card.type === 'Garam' ? `GARAM: ${result.message}` : `REAKSI: ${result.message}`,
+                'player1',
+                'attack',
+                calcLogString, // Pass the calculation string here
+                activeCalculation || undefined
+            );
+
+            const newState = {
+                ...gameState,
+                player1: newAttacker,
+                player2: {
+                    ...newDefender,
+                    activeBuffers: newDefenderBuffers,
+                    ph: Math.max(0, Math.min(14, defender.ph + finalPHChange))
+                },
+                gameLog: [...gameState.gameLog, mainLog]
+            };
 
             addVisualEffect(result.effectType || 'damage', result.damageDealt, result.message, { x: 75, y: 30 });
             soundManager.playSFX('attack');
@@ -732,6 +840,28 @@ export default function GameInterface() {
                     const attacker = activeState.player2; const defender = activeState.player1; const card = move.card;
                     const defendingCard = defender.trapSlot || { id: 'def-p1', name: 'Tiada', type: 'Element', description: '' } as any;
                     const result = calculateReaction(card, defendingCard);
+
+                    // --- pH DAMAGE MULTIPLIER (AI Attack) ---
+                    let pHEffectMultiplier = 1.0;
+                    const targetPH = activeState.player1.ph; // Player 1 is defender
+
+                    if (card.sintesisType === 'Asid') {
+                        if (targetPH < 1.0) pHEffectMultiplier = 2.0;
+                        else if (targetPH >= 1.0 && targetPH < 2.0) pHEffectMultiplier = 1.5;
+                        else if (targetPH >= 2.0 && targetPH < 3.0) pHEffectMultiplier = 1.25;
+                    }
+                    else if (card.sintesisType === 'Bes') {
+                        if (targetPH > 13.0) pHEffectMultiplier = 2.0;
+                        else if (targetPH > 12.0 && targetPH <= 13.0) pHEffectMultiplier = 1.5;
+                        else if (targetPH > 11.0 && targetPH <= 12.0) pHEffectMultiplier = 1.25;
+                    }
+
+                    if (pHEffectMultiplier > 1.0) {
+                        result.damageDealt = Math.floor(result.damageDealt * pHEffectMultiplier);
+                        result.message += ` (VULNERABLE x${pHEffectMultiplier}!)`;
+                    }
+                    // ----------------------------------------
+
                     activeState.player1.hp -= result.damageDealt;
                     if (result.effectType === 'heal') activeState.player2.hp += Math.abs(result.damageDealt);
 
@@ -741,8 +871,56 @@ export default function GameInterface() {
                     const defenseConsumed = card.type !== 'Garam' && defender.trapSlot;
                     if (defenseConsumed) activeState.player1.trapSlot = null;
 
-                    const log = createLog(activeState.turnNumber, `AI Serang guna ${card.name} (${result.damageDealt} HP)`, `AI Serang guna ${card.name} (${result.damageDealt} HP)`, 'player2', 'attack');
+                    // Handle Generated Card (e.g. Salt from Neutralization)
+                    if (result.cardGenerated) {
+                        activeState.player1.hand.push(result.cardGenerated);
+                        const saltLog = createLog(activeState.turnNumber, `REAKSI HASILKAN: ${result.cardGenerated.name}!`, `REAKSI HASILKAN: ${result.cardGenerated.name}!`, 'system', 'info', `+1 Kad ke tangan ${activeState.player1.name}`);
+                        activeState.gameLog.push(saltLog);
+                    }
+
+                    // --- pH CALCULATION START ---
+                    let finalPHChange = result.pHChange || 0;
+                    let calcLogString = '';
+                    let calcData: CalculationData | undefined;
+
+                    // Handle Buffer Activation (AI Self-Buff or Defender Buff? Let's assume AI gets buffer if generated)
+                    if (result.isBuffer) {
+                        const buffId = `buff-ai-${Date.now()}`;
+                        if (!activeState.player2.activeBuffers) activeState.player2.activeBuffers = [];
+                        activeState.player2.activeBuffers.push({
+                            id: buffId,
+                            name: card.name,
+                            multiplier: card.bufferMultiplier || 0.1,
+                            turnsRemaining: card.bufferDuration || 3,
+                            description: `Menentang perubahan pH (x${card.bufferMultiplier || 0.1})`
+                        });
+                        activeState.gameLog.push(createLog(activeState.turnNumber, `BUFFER AI DIAKTIFKAN: ${card.name}`, `AI BUFFER DIAKTIFKAN: ${card.name}`, 'player2', 'info'));
+                    }
+
+                    // Calculate Buffer Effect (On Defender = Player 1)
+                    if (finalPHChange !== 0) {
+                        const bufferedCalc = calculateBufferedPHChange(finalPHChange, activeState.player1.activeBuffers || []);
+                        finalPHChange = bufferedCalc.finalChange;
+                        calcLogString = bufferedCalc.calculationSteps.join('\n');
+                        calcData = bufferedCalc.calculationData;
+                    }
+
+                    // Update Defender pH (Player 1)
+                    activeState.player1.ph = Math.max(0, Math.min(14, activeState.player1.ph + finalPHChange));
+                    // --- pH CALCULATION END ---
+
+                    const log = createLog(
+                        activeState.turnNumber,
+                        `AI Serang guna ${card.name} (${result.damageDealt} HP, pH ${finalPHChange > 0 ? '+' : ''}${finalPHChange.toFixed(2)})`,
+                        `AI Serang guna ${card.name} (${result.damageDealt} HP)`,
+                        'player2',
+                        'attack',
+                        calcLogString,
+                        calcData
+                    );
                     activeState.gameLog.push(log);
+
+                    if (calcData) setActiveCalculation(calcData); // Trigger Animation
 
                     addVisualEffect(result.effectType as any || 'damage', result.damageDealt, result.message, { x: 25, y: 70 });
                     soundManager.playSFX('attack');
@@ -795,6 +973,21 @@ export default function GameInterface() {
             const errLog = createLog(activeState.turnNumber, "AI Error. Skip giliran.", "AI Error. Skip giliran.", 'system', 'error');
             activeState.gameLog.push(errLog);
         }
+
+        // HANDLE BUFFER DURATION (Decrement BOTH players)
+        ['player1', 'player2'].forEach(pid => {
+            const p = activeState[pid];
+            if (p.activeBuffers && p.activeBuffers.length > 0) {
+                const updated = p.activeBuffers.map((b: any) => ({ ...b, turnsRemaining: b.turnsRemaining - 1 }));
+                const active = updated.filter((b: any) => b.turnsRemaining > 0);
+                const expired = updated.filter((b: any) => b.turnsRemaining <= 0);
+
+                expired.forEach((b: any) => {
+                    activeState.gameLog.push(createLog(activeState.turnNumber, `Buffer ${b.name} (${p.name}) tamat.`, `Buffer tamat.`, 'system', 'info'));
+                });
+                p.activeBuffers = active;
+            }
+        });
 
         // TURN INCREMENT
         // Ensure this happens even if AI errors out, so Player 1 gets their turn back.
@@ -905,7 +1098,10 @@ export default function GameInterface() {
             {(appState === 'game' || appState === 'pvp') && gameState && safeGameState && me && opponent && (
                 <>
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-slate-950 to-black pointer-events-none" />
-                    <VisualEffectsLayer effects={safeGameState.activeVisualEffects} />
+                    <VisualEffectsLayer
+                        effects={safeGameState.activeVisualEffects}
+                        currentPH={me.ph} // Pass Player's pH for vignette
+                    />
 
                     {/* HEADER */}
                     <header className="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-40 shadow-lg relative shrink-0">
@@ -929,7 +1125,11 @@ export default function GameInterface() {
                     <main className="flex-1 flex relative">
                         {/* LEFT SIDEBAR: LOGS & METERS */}
                         <aside className="w-80 bg-slate-900/50 border-r border-slate-800 p-4 flex flex-col gap-4 z-10 backdrop-blur-sm shrink-0">
-                            <PHMeterComponent makmalPH={safeGameState.makmalPH} />
+                            <PHMeterComponent
+                                makmalPH={me ? me.ph : 7.0}
+                                calculationData={activeCalculation}
+                                onAnimationComplete={() => setActiveCalculation(null)}
+                            />
                             <div className="flex-1 flex flex-col min-h-0 bg-black/20 rounded-xl p-2 border border-slate-800/50">
                                 <h3 className="font-bold text-slate-400 text-xs mb-2 flex items-center gap-2"><ScrollText className="w-4 h-4" /> Log Pertarungan</h3>
                                 <ActionLog actions={safeGameState.gameLog} myId={myRole} />

@@ -922,6 +922,7 @@ export const garamCards: Card[] = [
         dailyUsage: 'Digunakan sebagai de-icer yang boleh terbiodegradasi (mesra alam) untuk jalan raya. Juga digunakan sebagai bahan tambah makanan untuk mengawal keasidan.',
         source: 'CH₃COOH + NH₃',
         isBuffer: true,
+        bufferMultiplier: 0.15, // Good buffer but volatile
         reactionConfig: { type: 'heal', value: 0, description: 'Penimbal menstabilkan keadaan.' }
     },
     {
@@ -983,6 +984,7 @@ export const garamCards: Card[] = [
         dailyUsage: 'Digunakan sebagai bahan tambah makanan (E331) untuk rasa dan pengawet dalam minuman ringan (club soda). Dalam perubatan, ia digunakan sebagai antikoagulan (mencegah pembekuan darah) semasa pemindahan darah.',
         source: 'C₆H₈O₇ + NaOH',
         isBuffer: true,
+        bufferMultiplier: 0.1, // Strong triprotic buffer
         reactionConfig: { type: 'heal', value: 20, description: 'Mengawet HP.' }
     },
     {

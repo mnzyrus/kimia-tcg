@@ -2,20 +2,21 @@
 import React, { useState } from 'react';
 import { Card } from '@/types';
 import { elementCards, sintesisCards, garamCards, REACTION_LIBRARY } from '@/lib/gameData';
-import { BookOpen, X, Atom, FlaskConical, Beaker, Globe, Calculator } from 'lucide-react';
+import { BookOpen, X, Atom, FlaskConical, Beaker, Globe, Calculator, Shield } from 'lucide-react';
 import PeriodicTable from '@/components/PeriodicTable';
 
 // --- Perpustakaan Components ---
 
 export function Perpustakaan({ onClose }: any) {
-    const [activeTab, setActiveTab] = useState<'elements' | 'synthesis' | 'salts' | 'reactions'>('elements');
+    const [activeTab, setActiveTab] = useState<'elements' | 'synthesis' | 'salts' | 'reactions' | 'guide'>('elements');
     const [selectedCard, setSelectedCard] = useState<Card | null>(null);
 
     const tabs = [
         { id: 'elements', label: 'Unsur', icon: Atom },
         { id: 'synthesis', label: 'Sintesis', icon: FlaskConical },
         { id: 'salts', label: 'Garam', icon: Beaker },
-        { id: 'reactions', label: 'Reaksi', icon: BookOpen }
+        { id: 'reactions', label: 'Reaksi', icon: BookOpen },
+        { id: 'guide', label: 'Panduan pH', icon: Calculator }
     ];
 
     return (
@@ -90,6 +91,57 @@ export function Perpustakaan({ onClose }: any) {
                             ))}
                         </div>
                     )}
+                    {activeTab === 'guide' && (
+                        <div className="space-y-6 text-slate-300 max-w-4xl mx-auto">
+                            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                                <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2"><Calculator className="text-blue-400" /> Konsep pH & Pengiraan</h3>
+                                <p className="mb-4">
+                                    pH adalah ukuran keasidan atau kealkalian sesuatu larutan. Ia dikira berdasarkan kepekatan ion Hidrogen [H<sup>+</sup>].
+                                </p>
+                                <div className="bg-slate-950 p-4 rounded-lg font-mono text-sm mb-4">
+                                    <p className="text-yellow-400">Formula Asas:</p>
+                                    <p className="text-xl my-2">pH = -log[H<sup>+</sup>]</p>
+                                    <p className="text-slate-500">// Di mana [H<sup>+</sup>] adalah kepekatan Molar (M)</p>
+                                </div>
+                                <h4 className="font-bold text-white mb-2">Langkah Pengiraan:</h4>
+                                <ol className="list-decimal list-inside space-y-2">
+                                    <li>Dapatkan nilai kepekatan ion H<sup>+</sup> (contoh: 1.0 × 10<sup>-7</sup> M).</li>
+                                    <li>Gunakan logaritma base 10.</li>
+                                    <li>Darab dengan -1 untuk dapatkan nilai positif.</li>
+                                </ol>
+                            </div>
+
+                            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                                <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2"><Shield className="text-green-400" /> Sistem Buffer (Penimbal)</h3>
+                                <p className="mb-4">
+                                    Larutan penimbal (Buffer) adalah larutan yang boleh mengekalkan pH walaupun sedikit asid atau bes ditambah.
+                                    Dalam permainan ini, Garam Buffer memberikan rintangan terhadap perubahan pH.
+                                </p>
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div className="bg-slate-900 p-4 rounded-lg border border-slate-800">
+                                        <h4 className="font-bold text-blue-400 mb-2">Tanpa Buffer:</h4>
+                                        <p className="text-sm">Perubahan pH berlaku sepenuhnya.</p>
+                                        <code className="block mt-2 text-red-400">ΔpH = 1.0</code>
+                                    </div>
+                                    <div className="bg-slate-900 p-4 rounded-lg border border-slate-800">
+                                        <h4 className="font-bold text-green-400 mb-2">Dengan Buffer:</h4>
+                                        <p className="text-sm mb-1">Contoh: <span className="text-white font-bold">Ammonium Asetat</span></p>
+                                        <p className="text-xs text-slate-500 mb-2">Pengganda: 0.15 (15% perubahan)</p>
+                                        <div className="bg-black/30 p-2 rounded border border-slate-700 font-mono text-xs">
+                                            <div className="flex justify-between text-slate-400"><span>Asal:</span> <span>ΔpH = 1.00</span></div>
+                                            <div className="flex justify-between text-green-400 font-bold border-t border-slate-700 mt-1 pt-1">
+                                                <span>Baru:</span>
+                                                <span>1.00 x 0.15 = 0.15</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="mt-4 text-sm text-slate-400 italic">
+                                    Tips: Gunakan Garam Buffer sebelum diserang oleh asid kuat untuk melindungi makmal anda!
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 {/* DETAILS OVERLAY */}
                 {selectedCard && (
@@ -124,24 +176,24 @@ export function LibraryDetailModal({ card, onClose }: { card: Card, onClose: () 
         return (
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 my-4">
                 <h4 className="text-blue-400 font-bold mb-2 flex items-center gap-2">
-                    <Calculator className="w-4 h-4" /> Pengiraan pH
+                    <Calculator className="w-4 h-4" /> Pengiraan pH Terperinci
                 </h4>
-                <div className="font-mono text-xs space-y-2 text-slate-300">
-                    <div className="flex justify-between">
-                        <span>Formula:</span>
-                        <span className="text-yellow-500">{formula}</span>
+                <div className="font-mono text-xs space-y-3 text-slate-300">
+                    <div className="border-b border-slate-800 pb-2">
+                        <span className="block text-slate-500 mb-1">Langkah 1: Tentukan Kepekatan</span>
+                        <span className="text-green-400 text-sm">[{card.sintesisType === 'Bes' ? <span>OH<sup>-</sup></span> : <span>H<sup>+</sup></span>}] = {concentration}</span>
                     </div>
-                    <div className="flex justify-between">
-                        <span>Kepekatan:</span>
-                        <span className="text-green-400">{concentration.replace('e', ' x 10^')}</span>
+                    <div className="border-b border-slate-800 pb-2">
+                        <span className="block text-slate-500 mb-1">Langkah 2: Guna Formula Log</span>
+                        <span className="text-yellow-500">{card.sintesisType === 'Bes' ? <span>pOH = -log[OH<sup>-</sup>]</span> : <span>pH = -log[H<sup>+</sup>]</span>}</span>
                     </div>
-                    <div className="flex justify-between border-t border-slate-800 pt-1 mt-1">
-                        <span>Pengiraan:</span>
-                        <span>{calc} = <span className="text-white font-bold">{card.pH}</span></span>
+                    <div>
+                        <span className="block text-slate-500 mb-1">Keputusan Akhir:</span>
+                        <span className="text-white font-bold text-lg">{calc} = {card.pH}</span>
                     </div>
                 </div>
                 <p className="text-[10px] text-slate-500 mt-2 italic">
-                    *Nilai ini adalah anggaran teori untuk rujukan pembelajaran.
+                    *Nilai ini dikira secara automatik berdasarkan sifat kimia kad.
                 </p>
             </div>
         );
