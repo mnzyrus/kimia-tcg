@@ -621,17 +621,19 @@ export default function GameInterface() {
             const targetPH = defender.ph;
 
             // Acidic Vulnerability (Low pH takes more Acid Dmg)
-            if (card.sintesisType === 'Asid') { // Assuming Card Type check or based on logic? `calculateReaction` handles neutralization. 
-                // If effective attack is Acidic (Acid vs Neutral/Acid):
+            // Acidic Vulnerability (Low pH takes more Acid Dmg)
+            if (card.sintesisType === 'Asid') {
                 if (targetPH < 1.0) pHEffectMultiplier = 2.0;
                 else if (targetPH >= 1.0 && targetPH < 2.0) pHEffectMultiplier = 1.5;
                 else if (targetPH >= 2.0 && targetPH < 3.0) pHEffectMultiplier = 1.25;
+                else if (targetPH >= 3.0 && targetPH <= 5.0) pHEffectMultiplier = 1.10;
             }
             // Basic Vulnerability (High pH takes more Base Dmg)
             else if (card.sintesisType === 'Bes') {
                 if (targetPH > 13.0) pHEffectMultiplier = 2.0;
                 else if (targetPH > 12.0 && targetPH <= 13.0) pHEffectMultiplier = 1.5;
                 else if (targetPH > 11.0 && targetPH <= 12.0) pHEffectMultiplier = 1.25;
+                else if (targetPH >= 9.0 && targetPH <= 11.0) pHEffectMultiplier = 1.10;
             }
 
             if (pHEffectMultiplier > 1.0) {
@@ -849,11 +851,13 @@ export default function GameInterface() {
                         if (targetPH < 1.0) pHEffectMultiplier = 2.0;
                         else if (targetPH >= 1.0 && targetPH < 2.0) pHEffectMultiplier = 1.5;
                         else if (targetPH >= 2.0 && targetPH < 3.0) pHEffectMultiplier = 1.25;
+                        else if (targetPH >= 3.0 && targetPH <= 5.0) pHEffectMultiplier = 1.10;
                     }
                     else if (card.sintesisType === 'Bes') {
                         if (targetPH > 13.0) pHEffectMultiplier = 2.0;
                         else if (targetPH > 12.0 && targetPH <= 13.0) pHEffectMultiplier = 1.5;
                         else if (targetPH > 11.0 && targetPH <= 12.0) pHEffectMultiplier = 1.25;
+                        else if (targetPH >= 9.0 && targetPH <= 11.0) pHEffectMultiplier = 1.10;
                     }
 
                     if (pHEffectMultiplier > 1.0) {

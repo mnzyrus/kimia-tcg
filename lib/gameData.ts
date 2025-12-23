@@ -1,13 +1,24 @@
 import { Card, ReactionEntry } from '@/types';
 
 export const PH_COLOR_MAP = [
-    { max: 2.0, color: '#EF4444', name: 'Asid Kuat', effect: 'Bahaya Kakisan (Kos +1)' },
-    { max: 4.0, color: '#F97316', name: 'Asid Sederhana', effect: 'Ketidakstabilan (-1 E/giliran)' },
-    { max: 6.0, color: '#EAB308', name: 'Asid Lemah', effect: 'Sedikit Berasid' },
-    { max: 8.0, color: '#22C55E', name: 'Neutral', effect: 'Keseimbangan (+1 E, +1 M)' },
-    { max: 10.0, color: '#3B82F6', name: 'Bes Lemah', effect: 'Sedikit Beralkali' },
-    { max: 12.0, color: '#6366F1', name: 'Bes Sederhana', effect: 'Ketidakstabilan Alkali' },
-    { max: 14.0, color: '#A855F7', name: 'Bes Kuat', effect: 'Bahaya Kaustik (Lawan +1 Kad)' },
+    { max: 1.0, color: '#DC2626', name: 'BAHAYA: x2.0 Dmg Asid!', effect: 'Bahaya Kakisan' },
+    { max: 2.0, color: '#EF4444', name: 'AMARAN: x1.5 Dmg Asid!', effect: 'Kakisan Tinggi' },
+    { max: 3.0, color: '#F97316', name: 'RISIKO: x1.25 Dmg Asid!', effect: 'Berasid' },
+    { max: 5.0, color: '#FBBF24', name: 'Asid Lemah (x1.1 Dmg)', effect: 'Sedikit Berasid' },
+    { max: 6.0, color: '#FDE047', name: 'Kurang Stabil', effect: 'Tiada Bonus/Malus' },
+    { max: 8.0, color: '#22C55E', name: 'Stabil (+1 E / +1 M)', effect: 'Keseimbangan' },
+    // Note: 7.0 is handled dynamically or falls into this range, but map uses 'max'. 
+    // If logic finds <= 8 it picks this. We might need specific logic for 7.0 visual if relying purely on map.
+    // However, existing logic (bonus resource) handles 7.0 specifically in code.
+    // Let's refine for 7.0 if possible? The find logic usually takes first match.
+    // If I put 7.0 before 8.0?
+    // Let's insert 7.0 specific entry for UI sake?
+    // Actually, `getPHDetails` likely iterates.
+    { max: 9.0, color: '#86EFAC', name: 'Kurang Stabil', effect: 'Tiada Bonus/Malus' },
+    { max: 11.0, color: '#60A5FA', name: 'Bes Lemah (x1.1 Dmg)', effect: 'Sedikit Beralkali' },
+    { max: 12.0, color: '#3B82F6', name: 'RISIKO: x1.25 Dmg Bes!', effect: 'Beralkali' },
+    { max: 13.0, color: '#6366F1', name: 'AMARAN: x1.5 Dmg Bes!', effect: 'Kaustik Tinggi' },
+    { max: 14.0, color: '#A855F7', name: 'BAHAYA: x2.0 Dmg Bes!', effect: 'Bahaya Kaustik' },
 ];
 
 export const REACTION_LIBRARY: ReactionEntry[] = [
