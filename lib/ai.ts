@@ -236,7 +236,8 @@ function createPrompt(gameState: GameState): string {
     
     Current Game State:
     Turn: ${gameState.turnNumber}
-    Makmal pH: ${gameState.makmalPH}
+    Player 1 pH: ${gameState.player1.ph}
+    Player 2 pH: ${gameState.player2.ph}
     
     Your Status (AI/Player 2):
     HP: ${p2.hp}/${p2.maxHP}
