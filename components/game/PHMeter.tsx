@@ -1,75 +1,27 @@
-
-import React, { useMemo, useRef, useEffect } from 'react';
-import { LogEntry, CalculationData } from '@/types';
-import { Eye, EyeOff, Zap, Beaker, Heart, Calculator, Activity, Lightbulb } from 'lucide-react';
+import React, { useMemo, useRef, useEffect, useState } from 'react';
+import { CalculationData } from '@/types';
+import { Activity, Lightbulb, Calculator } from 'lucide-react';
 import { PH_COLOR_MAP } from '@/lib/gameData';
 import { getPHDetails } from '@/lib/gameLogic';
+import { subscribeToPHAnimation } from '@/lib/phEvents';
 
-export function HPBar({ current, max, name, isOpponent, energy, mass }: any) {
-    return (
-        <div className={`p-3 rounded-xl border ${isOpponent ? 'bg-red-950/30 border-red-900/50' : 'bg-blue-950/30 border-blue-900/50'}`}>
-            <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center gap-2">
-                    {isOpponent ? <EyeOff className="w-4 h-4 text-red-400" /> : <Eye className="w-4 h-4 text-blue-400" />}
-                    <span className="font-bold text-white">{name}</span>
-                </div>
-                <div className="flex items-center gap-3 text-xs font-mono">
-                    <div className="flex items-center text-yellow-400"><Zap className="w-3 h-3 mr-1" /> {isOpponent ? '?' : energy}</div>
-                    <div className="flex items-center text-blue-400"><Beaker className="w-3 h-3 mr-1" /> {isOpponent ? '?' : mass}</div>
-                </div>
-            </div>
-            <div className="flex items-center gap-2">
-                <Heart className="w-5 h-5 text-green-500" />
-                <div className="flex-1 h-4 bg-slate-800 rounded-full overflow-hidden relative border border-slate-700">
-                    <div className="h-full bg-green-600 transition-all duration-500" style={{ width: `${Math.max(0, Math.min(100, (current / max) * 100))}%` }} />
-                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">{current}/{max}</span>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-export function ActionLog({ actions, myId }: { actions: LogEntry[], myId: string }) {
-    const scrollRef = useRef<HTMLDivElement>(null);
-    useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [actions]);
-    return (
-        <div className="bg-black/40 rounded-xl p-3 h-40 overflow-y-auto border border-slate-800 font-mono text-xs space-y-1 scrollbar-thin" ref={scrollRef}>
-            {actions.map((log) => {
-                const isMe = log.actorId === myId;
-                const isSystem = log.actorId === 'system';
-                // If it's me, show private. If system, show public (or private, usually same). Else show public (opponent view).
-                const displayMsg = isSystem ? log.publicMsg : (isMe ? log.privateMsg : log.publicMsg);
-
-                return (
-                    <div key={log.id} className={`flex gap-2 mb-1 border-l-2 pl-2 ${isSystem ? 'border-yellow-500 text-yellow-200' : (isMe ? 'border-blue-500 text-blue-200' : 'border-red-500 text-red-200')}`}>
-                        <span className="text-slate-500 font-bold opacity-50">[T{log.turn}]</span>
-                        <span>{displayMsg || log.message}</span>
-                        {log.calculation && isMe && <span className="block text-yellow-400 font-mono text-[10px] ml-8">{log.calculation}</span>}
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
-
-export function PHMeterComponent({ makmalPH, calculationData, onAnimationComplete, onSelfApply }: { makmalPH: number, calculationData?: CalculationData | null, onAnimationComplete?: () => void, onSelfApply: (card: any, source: string, index: number) => void }) {
-    const [displayedPH, setDisplayedPH] = React.useState(makmalPH);
+export function PHMeter({ makmalPH, onSelfApply }: { makmalPH: number, onSelfApply: (card: any, source: string, index: number) => void }) {
+    const [displayedPH, setDisplayedPH] = useState(makmalPH);
 
     // Internal Queue System
-    const [queue, setQueue] = React.useState<CalculationData[]>([]);
-    const [playingData, setPlayingData] = React.useState<CalculationData | null>(null);
-    const lastIngestedRef = useRef<string>("");
+    const [queue, setQueue] = useState<CalculationData[]>([]);
+    const [playingData, setPlayingData] = useState<CalculationData | null>(null);
 
-    // Ingest Prop Data into Queue with Deduplication
+    // Subscribe to Event Bus
     useEffect(() => {
-        if (calculationData && calculationData.id) {
-            // Strict deduplication by ID
-            if (calculationData.id !== lastIngestedRef.current) {
-                lastIngestedRef.current = calculationData.id;
-                setQueue(prev => [...prev, calculationData]);
-            }
-        }
-    }, [calculationData]);
+        const unsubscribe = subscribeToPHAnimation((data) => {
+            // Strictly push to queue. 
+            // The unique ID check is handled by the event trigger source mostly, 
+            // but we can trust the bus to only send valid triggers.
+            setQueue(prev => [...prev, data]);
+        });
+        return unsubscribe;
+    }, []);
 
     // Smooth Transition Effect for pH Number
     useEffect(() => {
@@ -95,10 +47,10 @@ export function PHMeterComponent({ makmalPH, calculationData, onAnimationComplet
 
     const details = useMemo(() => getPHDetails(displayedPH), [displayedPH]);
     const percent = (displayedPH / 14) * 100;
-    const [step, setStep] = React.useState(0);
+    const [step, setStep] = useState(0);
 
     // Drag State with Latency
-    const [isDragOver, setIsDragOver] = React.useState(false);
+    const [isDragOver, setIsDragOver] = useState(false);
     const dragTimer = useRef<NodeJS.Timeout | null>(null);
 
     // Playback Loop
@@ -125,14 +77,13 @@ export function PHMeterComponent({ makmalPH, calculationData, onAnimationComplet
 
         const finalTimer = setTimeout(() => {
             setPlayingData(null); // Finish this item
-            if (onAnimationComplete) onAnimationComplete();
-        }, 4000); // 4s total duration (reduced from 8s)
+        }, 4000); // 4s total duration
 
         return () => {
             timers.forEach(clearTimeout);
             clearTimeout(finalTimer);
         };
-    }, [playingData, onAnimationComplete]);
+    }, [playingData]);
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -268,5 +219,3 @@ export function PHMeterComponent({ makmalPH, calculationData, onAnimationComplet
         </>
     );
 }
-// Removed standalone AnimatedPHDisplay
-

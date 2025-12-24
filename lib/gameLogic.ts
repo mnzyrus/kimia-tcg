@@ -15,55 +15,62 @@ export function getPHDetails(pH: number) {
     return { clampedPH: clampedPH.toFixed(1), color: category.color, name: category.name, effect: category.effect, hPlus: formatConc(hPlus) + ' M', ohMinus: formatConc(ohMinus) + ' M' };
 }
 
-export function calculateBufferedPHChange(initialChange: number, activeBuffers: ActiveBuffer[]): { finalChange: number, calculationSteps: string[], calculationData: CalculationData } {
-    if (initialChange === 0) return {
-        finalChange: 0,
-        calculationSteps: ["Tiada perubahan pH."],
-        calculationData: {
-            equation: "Neutral",
-            concentration: "No Change",
-            formula: "pH = Constant",
-            steps: ["No Reaction"],
-            finalResult: "No Change"
-        }
-    };
+export function calculateBufferedPHChange(initialChange: number, activeBuffers: ActiveBuffer[], substancePH?: number): { finalChange: number, calculationSteps: string[], calculationData: CalculationData } {
+    // 1. Buffer Existence
+    // 2. Combo's pH (The substance being applied)
+    // 3. pH Change Value (Delta = 7.0 - Substance pH)
+    // 4. Final Number (User's new pH)
 
     const steps: string[] = [];
     let multiplier = 1.0;
+    const bufferNames: string[] = [];
 
-    steps.push(`Perubahan pH Asal: ${initialChange > 0 ? '+' : ''}${initialChange.toFixed(2)}`);
-
+    // Step 1: Buffer Existence
     if (activeBuffers.length > 0) {
-        // Apply strongest buffer (lowest multiplier) or multiply them? User said: "time the multiplier = final ph change".
-        // Let's multiply them for stacking effect, but usually buffers don't stack infinitely.
-        // User: "multiplier of each buffer salt... change the default multiplier of 1 to the multipier of the buffer."
-        // Let's assume we take the BEST (lowest) multiplier if multiple exist, or multiply.
-        // Let's multiply for now as it's simpler mechanically.
-
         activeBuffers.forEach(buff => {
             multiplier *= buff.multiplier;
-            steps.push(`Buffer Aktif (${buff.name}): x${buff.multiplier}`);
+            bufferNames.push(`${buff.name} (x${buff.multiplier})`);
         });
+        steps.push(`Buffer Aktif: ${bufferNames.join(', ')}`);
     } else {
-        steps.push(`Tiada Buffer Aktif: x1.0`);
+        steps.push("Buffer Aktif: Tiada (x1.0)");
     }
 
-    const finalChange = initialChange * multiplier;
-    steps.push(`Pengiraan Akhir: ${initialChange.toFixed(2)} x ${multiplier.toFixed(4)} = ${finalChange.toFixed(4)}`);
-    steps.push(`Perubahan pH Sebenar: ${finalChange > 0 ? '+' : ''}${finalChange.toFixed(4)}`);
+    // Step 2: Combo's pH (Substance pH)
+    // If substancePH is provided, show it. If not (e.g. legacy call), infer or skip.
+    const substPHStr = substancePH !== undefined ? substancePH.toFixed(1) : "?";
+    steps.push(`pH Bahan: ${substPHStr}`);
+
+    // Step 3: pH Change Value
+    // initialChange passed here IS the Delta (calculated as 7.0 - substPH previously or passed directly).
+    // Let's assume initialChange IS the intended raw delta.
+    const rawDelta = initialChange;
+    steps.push(`Perubahan pH (Delta): ${rawDelta > 0 ? '+' : ''}${rawDelta.toFixed(2)}`);
+
+    // Calculation (Not shown as step, but part of logic)
+    const finalDelta = rawDelta * multiplier;
+
+    // Step 4: Final pH Number (User's pH) - logic handled by Caller?
+    // User requested: "4. the final number of pH of the user would be".
+    // This function returns the DELTA. The caller (GameInterface) knows "User's Current pH".
+    // So this function can't fully generate Step 4 without knowing Current pH.
+    // However, I can return the textual Step 4 template or let the caller append it.
+    // Let's return formatted data so UI can render it.
 
     const calculationData: CalculationData = {
-        equation: activeBuffers.length > 0 ? `Buffer: ${activeBuffers.map(b => b.name).join(', ')}` : "Tanpa Buffer",
-        concentration: `ΔpH Awal = ${initialChange.toFixed(3)}`,
-        formula: `ΔpH_Final = ΔpH_Initial × Multiplier`,
+        equation: activeBuffers.length > 0 ? `Buffer: ${bufferNames.join(', ')}` : "Tiada Buffer",
+        concentration: `pH Bahan = ${substPHStr}`,
+        formula: `ΔpH = (7.0 - ${substPHStr}) × ${multiplier.toFixed(2)}`,
         steps: [
-            `Multiplier = ${multiplier.toFixed(4)}`,
-            `ΔpH = ${initialChange.toFixed(3)} × ${multiplier.toFixed(4)}`,
+            `Buffer Multiplier: ${multiplier.toFixed(2)}`,
+            `Raw Delta: ${rawDelta.toFixed(2)}`,
+            `Buffered Delta: ${finalDelta.toFixed(2)}`
         ],
-        finalResult: `ΔpH = ${finalChange.toFixed(4)}`
+        finalResult: `ΔpH = ${finalDelta > 0 ? '+' : ''}${finalDelta.toFixed(2)}`,
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     };
 
-    return { finalChange, calculationSteps: steps, calculationData };
+    return { finalChange: finalDelta, calculationSteps: steps, calculationData };
 }
 
 export function applySaltEffect(card: Card): ReactionResult {
@@ -96,34 +103,12 @@ export function applySaltEffect(card: Card): ReactionResult {
                 if (card.id.includes('cuno32')) result.effectType = 'toxic'; // Toxic gas
                 break;
             case 'heal':
-                // Negative damage represents healing in some contexts, but let's use a specific field or external handling
-                // Ideally, the caller handles 'heal' effect type by healing specific amount
                 result.effectType = 'heal';
-                result.damageDealt = -(card.reactionConfig.value || 0); // Negative damage = Heal for attacker? 
-                // Wait, if I use it ON opponent, it shouldn't heal opponent. 
-                // Salts are "attacks" usually? 
-                // Actually, some salts are self-buffs (Heal). 
-                // If I play NaCl (Heal 50), it heals ME.
-                // The caller needs to know TARGET.
-                // For now, let's keep damageDealt positive for damage, and handle healing via effectType.
-                result.damageDealt = 0;
-                // We need a way to pass Heal Value. ReactionResult doesn't have explicit healValue, 
-                // but usually handled via effectType check and logic in component.
-                // Let's overload 'damageDealt' as heal value if type is 'heal'? 
-                // Or better, let's look at how calculateReaction does it.
-                // calculateReaction returns effectType: 'heal'. 
-                // In GameInterface, handleAttack logic: if result.effectType === 'heal', newSelfHP += 200 (for example).
-                // So here, if heal -> damageDealt should be 0, and we rely on looking up the card's config value in UI?
-                // NO, we should return the value.
-                // Let's add 'value' to ReactionResult optional? Or just reuse damageDealt as value param.
-                // Let's check calculateReaction line 29: damageDealt: -200 (Negative damage as heal).
-                // So yes, damageDealt negative = Heal.
-                result.damageDealt = -(card.reactionConfig.value || 0);
+                result.damageDealt = -(card.reactionConfig.value || 0); // Negative damage = Heal
                 break;
             case 'status':
                 result.effectType = 'reaction_bad'; // Generic "Bad thing happening to target"
                 result.message = `${card.name}: ${card.reactionConfig.statusName}`;
-                // Usage of specific status names 'Blind', 'Stun' etc will be parsed by UI from reactionConfig or manually here
                 break;
             default:
                 break;
@@ -169,16 +154,6 @@ export function calculateReaction(attackingCard: Card, defendingCard: Card): Rea
             const reactionDesc = specificSalt.reactionConfig?.description || `PENEUTRALAN BERJAYA! Garam ${specificSalt.name} terhasil.`;
             const damageVal = specificSalt.reactionConfig?.type === 'damage' ? (specificSalt.reactionConfig.value || 0) : 0;
 
-            // Logic for 'heal' type is handled by component interpretation usually, 
-            // but for 'ReactionResult' consistency, we keep damage positive and rely on effectType 'heal'.
-            // Unless it's attacking enemy, then it must be 0? 
-            // Actually, if I attack Opponent with Salt producing Heal, usually Opponent doesn't heal.
-            // But this function is called when Attacking Defender.
-            // If Result has 'cardGenerated', defender gets Card. 
-            // The 'message' describes effect. 
-            // The actual immediate 'damage' is usually 0 for Neutralization unless Salt explodes.
-            // Let's rely on config.
-
             let effectType: 'reaction_good' | 'reaction_bad' | 'damage' | 'toxic' | 'drain' | 'heal' = 'reaction_good';
             if (specificSalt.reactionConfig?.type === 'damage') effectType = 'damage';
             if (specificSalt.reactionConfig?.type === 'heal') effectType = 'heal';
@@ -190,57 +165,102 @@ export function calculateReaction(attackingCard: Card, defendingCard: Card): Rea
                 message: reactionDesc,
                 effectType: effectType,
                 pHChange: 0,
-                forcePH: 7.0,
+                forcePH: 7.0, // Neutralization resets to 7 check? Or just delta 0? usually brings closer to 7. 
+                // Logic: A complete neutralization theoretically brings pH to 7 unless excess reagent.
+                // Simplified: pH Change towards 7? 
+                // Existing code had pHChange 0. Let's stick to 0 (Neutralized).
                 cardGenerated: newSaltCard
             };
         }
 
-        // Fallback Logic if NO Salt found (should be rare with full data)
+        // Fallback Logic if NO Salt found
         if (attackTier === defendTier) {
             return { damageDealt: 0, recoilDamage: 30, message: `PENEUTRALAN SEIMBANG! (Tiada Garam Khusus)`, effectType: 'reaction_good', pHChange: 0 };
-        } else if (defendTier < attackTier) { // Lower number = Stronger Tier (0 > 2)
-            // Defendant is Stronger (e.g. T0 vs T1) -> Defense Wins (No Dmg)
-            return { damageDealt: 0, recoilDamage: 0, message: `PERTAHANAN KUKUH! (Tier ${defendTier} vs ${attackTier})`, effectType: 'reaction_good', pHChange: 0 };
+        } else if (defendTier < attackTier) {
+            return { damageDealt: 0, recoilDamage: 0, message: `PERTAHANAN KUKUH!`, effectType: 'reaction_good', pHChange: 0 };
         } else {
-            // Attacker is Stronger (e.g. T0 vs T2) -> Piercing
             const damage = Math.floor(attackPower / 2);
-            return { damageDealt: damage, recoilDamage: 0, message: `PERTAHANAN LEMAH! ${damage} damage tembus.`, effectType: 'reaction_bad', pHChange: 0.5 };
+            return { damageDealt: damage, recoilDamage: 0, message: `PERTAHANAN LEMAH! ${damage} damage tembus.`, effectType: 'reaction_bad', pHChange: 0.5 }; // Keep small leak for partial
         }
     }
 
     // SAME TYPE CLASH (Acid vs Acid / Base vs Base)
-    // Logic: Damage Multiplied by Highest Tier (Lowest Number)
     if (attackType === defendType && attackType !== undefined) {
-        // Find highest tier (smallest number)
         const highestTier = Math.min(attackTier, defendTier);
-        let multiplier = 1.1; // Default T2
-
-        if (highestTier <= 0) multiplier = 2.0;       // T0
-        else if (highestTier <= 0.5) multiplier = 1.75; // T0.5
-        else if (highestTier <= 1.0) multiplier = 1.5;  // T1
-        else if (highestTier <= 1.5) multiplier = 1.25; // T1.5
+        let multiplier = 1.1;
+        if (highestTier <= 0) multiplier = 2.0;
+        else if (highestTier <= 0.5) multiplier = 1.75;
+        else if (highestTier <= 1.0) multiplier = 1.5;
+        else if (highestTier <= 1.5) multiplier = 1.25;
 
         const finalDamage = Math.floor(attackPower * multiplier);
-
+        // Clash usually worsens pH in that direction
+        // If Acid vs Acid, pH drops more.
         return {
             damageDealt: finalDamage,
             recoilDamage: 0,
             message: `LETUPAN ${attackType.toUpperCase()}! (Tier ${highestTier} x${multiplier})`,
             effectType: 'reaction_bad',
-            pHChange: 1
+            pHChange: 1.0 // Simple penalty
         };
     }
 
     // Trap
     if (defendingCard.type === 'Trap') return { damageDealt: 0, recoilDamage: 0, message: `PERANGKAP DIAKTIFKAN!`, effectType: 'reaction_good', pHChange: 0 };
 
-    // Direct Hit
-    let directPHChange = 0;
-    if (attackType === 'Asid') directPHChange = -0.5;
-    if (attackType === 'Bes') directPHChange = 0.5;
-    if (attackTier <= 0.5 && directPHChange !== 0) directPHChange *= 2; // Stronger effect for Tier 0/0.5
+    // Direct Hit logic (UPDATED to 7.0 - pH)
+    const substancePH = attackingCard.pH !== undefined ? attackingCard.pH : (attackType === 'Asid' ? 3.0 : (attackType === 'Bes' ? 11.0 : 7.0));
+    // Calculate Delta: 7.0 - Substance pH
+    // Example: Acid (pH 1.0) -> 7.0 - 1.0 = +6.0?
+    // Wait. If pH is 1.0 (Acid), it should LOWER user pH.
+    // If I throw Acid at you, your pH goes DOWN.
+    // So Delta should be negative? 
+    // Formula user asked: "7.0 - (-log[H+])" -> "7.0 - pH".
+    // 7.0 - 1.0 = +6.0. If we ADD 6.0 to 7.0, we get 13.0 (Base). WRONG.
+    // Acid should REDUCE pH.
+    // Maybe user meant "pH Change" is the Magnitude? Or "Target pH"?
+    // "the final ph from the ph 7 of the neutral to that number which is 0.5 of sulfiric acid cause ph from 7.0 to 0.5. in short the caculation of the ph change should be 7.0 - (-log[H+]). this is the delta pH"
+    // If H2SO4 pH is 0.5. Delta = 7.0 - 0.5 = 6.5.
+    // If we want result to be 0.5, we SUBTRACT 6.5 from 7.0.
+    // So Delta is 6.5. Direction depends on Acid/Base?
+    // "Base (pH 14)": Delta = 7.0 - 14.0 = -7.0.
+    // If we SUBTRACT -7.0 from 7.0 -> 14.0. Correct.
+    // So Logic: New pH = Current pH - (7.0 - Substance pH).
+    // Let's verify:
+    // Acid (pH 0.5): Delta = 7.0 - 0.5 = 6.5. Current(7) - 6.5 = 0.5. Correct.
+    // Base (pH 14.0): Delta = 7.0 - 14.0 = -7.0. Current(7) - (-7.0) = 14.0. Correct.
+    // Acid (pH 1.0) on Base (pH 14.0):
+    // Delta = 7.0 - 1.0 = 6.0.
+    // Result = 14.0 - 6.0 = 8.0. (Neutralization). Correct direction.
 
-    return { damageDealt: attackPower, recoilDamage: 0, message: `SERANGAN TERUS!`, effectType: 'damage', pHChange: directPHChange };
+    let deltaPH = 7.0 - substancePH;
+    // We return "pHChange" to be APPLIED. 
+    // In handleAttack: "newPH = oldPH + pHChange".
+    // So if I want "Current - Delta", and Delta is positive (6.5), I need to return -6.5?
+    // User formula: "7.0 - (-log[H+])" = 6.5.
+    // User said: "final ph should also include the current pH(buffer multiplier) - the change of pH".
+    // "Current - Change".
+    // So if Change is 6.5, Final = Current - 6.5.
+    // GameInterface uses `defender.ph + finalPHChange`.
+    // So if I want subtraction, `finalPHChange` should be negative of user's Delta.
+    // User Delta = 6.5.
+    // return value for `pHChange` should be `-6.5`?
+    // Let's stick to returning the value derived from "Change direction".
+    // But `calculateBufferedPHChange` logic says `initialChange * multiplier`.
+    // If user's delta is 6.5, and I perform `Current - 6.5`, then `initialChange` passed to `gameInterface` logic should be `-6.5`.
+    // Or I change `GameInterface` to SUBTRACT.
+    // User said: "Current ... - the change of pH".
+    // So I will calculate `Change = 7.0 - SubstancePH`.
+    // And in `GameInterface`, I will do `Current - Change`.
+    // So `calculateReaction` should return the POSITIVE magnitude of change if Acid (6.5), and NEGATIVE magnitude if Base (-7.0)?
+    // Wait.
+    // 7.0 - 14.0 = -7.0.
+    // Current(7) - (-7.0) = 14. Correct.
+    // 7.0 - 0.5 = 6.5.
+    // Current(7) - 6.5 = 0.5. Correct.
+    // So `calculateReaction` should return `7.0 - SubstancePH` explicitly.
+
+    return { damageDealt: attackPower, recoilDamage: 0, message: `SERANGAN TERUS!`, effectType: 'damage', pHChange: deltaPH };
 }
 
 export function createDeck(): Card[] {

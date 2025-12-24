@@ -76,6 +76,7 @@ export interface CalculationData {
     formula: string;       // e.g. "pH = -log[H+]"
     steps: string[];       // e.g. ["-log(1.0e-7)", "-(-7)", "pH = 7.0"]
     finalResult: string;   // e.g. "7.0"
+    id?: string;           // Unique ID for animation queueing
 }
 
 export interface Player {

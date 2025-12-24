@@ -13,7 +13,9 @@ import { MatchmakingService } from '@/lib/matchmaking';
 
 // UI Components
 import { GameButton, DraggableCard, SynthesisZone, DefenseSlot, RecyclingZone } from './CardComponents';
-import { HPBar, ActionLog, PHMeterComponent } from './GameUI';
+import { HPBar, ActionLog } from './GameUI';
+import { PHMeter } from './PHMeter';
+import { triggerPHAnimation } from '@/lib/phEvents';
 import { VisualEffectsLayer } from './VisualEffectsLayer';
 import { Perpustakaan } from './Perpustakaan';
 import { MainMenu, Lobby } from './Menus';
@@ -39,7 +41,6 @@ export default function GameInterface() {
     const [showLibrary, setShowLibrary] = useState(false);
     const [showTutorial, setShowTutorial] = useState(false);
     const [showAskChemist, setShowAskChemist] = useState(false);
-    const [activeCalculation, setActiveCalculation] = useState<CalculationData | null>(null);
     const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
     const [lobbyError, setLobbyError] = useState<string>('');
 
@@ -681,6 +682,7 @@ export default function GameInterface() {
             }
 
             let calcLogString = '';
+            let calcData: CalculationData | null = null;
             let finalPHChange = result.pHChange || 0;
 
             // HANDLE BUFFER ACTIVATION (Target: Defender or Attacker? Usually Defensive Buffers on Defender, but logic says Card Effect. Buffer cards usually 'Sintesis' placed on field? Or executed? Card.type is 'Sintesis' or 'Garam'. If it's a buffer, it helps owner?
@@ -712,10 +714,24 @@ export default function GameInterface() {
 
             // CALCULATE PH CHANGE WITH BUFFERS (For Defender)
             if (finalPHChange !== 0) {
-                const bufferedCalc = calculateBufferedPHChange(finalPHChange, newDefenderBuffers);
+                // If it's a direct attack, we use the Card pH if available for log, else fallback
+                const attackingSubstancePH = card.pH !== undefined ? card.pH : (card.sintesisType === 'Asid' ? 1.0 : 14.0); // Rough fallback if undefined
+                const bufferedCalc = calculateBufferedPHChange(finalPHChange, newDefenderBuffers, attackingSubstancePH);
+
+                // Subtract the Delta from Current pH for the Final Result Logic?
+                // `calculateReaction` returns positive delta for Acid (6.5). If we subtract 6.5 from 7.0 -> 0.5.
+                // WE MUST SUBTRACT.
+                // But `finalPHChange` from calculateReaction is 6.5?
+                // Let's verify calculateReaction: returns `7.0 - substancePH` (e.g. 6.5).
+                // So here we should use `current - bufferedChange`.
+
                 finalPHChange = bufferedCalc.finalChange;
                 calcLogString = bufferedCalc.calculationSteps.join('\n');
-                // No Animation for Player Attack
+                calcData = bufferedCalc.calculationData;
+
+                // We want to show the FINAL pH in step 4 of ActiveCalculation
+                const predictedPH = Math.max(0, Math.min(14, defender.ph - finalPHChange));
+                calcData.finalResult = `pH Akhir = ${predictedPH.toFixed(2)}`;
             }
 
             const mainLog = createLog(
@@ -724,9 +740,12 @@ export default function GameInterface() {
                 card.type === 'Garam' ? `GARAM: ${result.message}` : `REAKSI: ${result.message}`,
                 'player1',
                 'attack',
-                calcLogString, // Pass the calculation string here
-                activeCalculation || undefined
+                calcLogString,
+                calcData || undefined
             );
+
+            // New pH Logic: SUBTRACT the Delta
+            const newPH = Math.max(0, Math.min(14, defender.ph - finalPHChange));
 
             const newState = {
                 ...gameState,
@@ -734,11 +753,12 @@ export default function GameInterface() {
                 player2: {
                     ...newDefender,
                     activeBuffers: newDefenderBuffers,
-                    ph: Math.max(0, Math.min(14, defender.ph + finalPHChange))
+                    ph: newPH
                 },
                 gameLog: [...gameState.gameLog, mainLog]
             };
 
+            if (calcData) triggerPHAnimation(calcData); // Show animation
             addVisualEffect(result.effectType || 'damage', result.damageDealt, result.message, { x: 75, y: 30 });
             soundManager.playSFX('attack');
             syncState(newState);
@@ -747,6 +767,68 @@ export default function GameInterface() {
         } else {
             sendAction('attack', { card, index });
         }
+    };
+
+    const handleSelfApply = (card: Card, source: string, index: number) => {
+        if (!gameState) return;
+        if (myRole !== 'player1') return; // Only local/host can self-apply for now
+
+        const player = gameState.player1;
+
+        // 1. Calculate Delta Logic: 7.0 - pH
+        // If card.pH is undefined, use fallback based on type
+        const substPH = card.pH !== undefined ? card.pH : (card.sintesisType === 'Asid' ? 1.0 : (card.sintesisType === 'Bes' ? 14.0 : 7.0));
+        const rawDelta = 7.0 - substPH;
+
+        // 2. Buffer Calculation (Self)
+        const bufferedCalc = calculateBufferedPHChange(rawDelta, player.activeBuffers, substPH);
+        const finalDelta = bufferedCalc.finalChange;
+
+        // 3. Apply: Current - Delta
+        const newPH = Math.max(0, Math.min(14, player.ph - finalDelta));
+
+        // 4. Update Steps for UI
+        const finalCalculationData = {
+            ...bufferedCalc.calculationData,
+            finalResult: `pH Akhir = ${newPH.toFixed(2)}`
+        };
+
+        // Remove Card Logic
+        const newHand = [...player.hand];
+        const newSynthesisZone = [...player.synthesisZone];
+
+        if (source === 'hand') {
+            newHand.splice(index, 1);
+        } else if (source === 'synthesisZone') {
+            newSynthesisZone.splice(index, 1);
+        }
+
+        // Add Log
+        const log = createLog(
+            gameState.turnNumber,
+            `RAWAT DIRI: ${card.name} digunakan.`,
+            `Pemain merawat diri dengan ${card.name}.`,
+            'player1',
+            'info',
+            bufferedCalc.calculationSteps.join('\n'),
+            finalCalculationData
+        );
+
+        const newState = {
+            ...gameState,
+            player1: {
+                ...player,
+                hand: newHand,
+                synthesisZone: newSynthesisZone,
+                ph: newPH
+            },
+            gameLog: [...gameState.gameLog, log]
+        };
+
+        triggerPHAnimation(finalCalculationData); // Via Event Bus
+        addVisualEffect('heal', 0, 'pH Update', { x: 20, y: 80 });
+        soundManager.playSFX('synthesize'); // Use synthesize sound for "Use"
+        syncState(newState);
     };
 
     // --- AI LOGIC ---
@@ -780,8 +862,8 @@ export default function GameInterface() {
                     break;
                 }
 
-                // Add delay for pacing (only if we have time)
-                if (remaining > 1000) await new Promise(r => setTimeout(r, 800));
+                // Check Timer
+
 
                 let isMeaningfulMove = false; // Flag to check if we reset timer
 
@@ -885,7 +967,7 @@ export default function GameInterface() {
                     // --- pH CALCULATION START ---
                     let finalPHChange = result.pHChange || 0;
                     let calcLogString = '';
-                    let calcData: CalculationData | undefined;
+                    let calcData: CalculationData | null = null;
 
                     // Handle Buffer Activation (AI Self-Buff or Defender Buff? Let's assume AI gets buffer if generated)
                     if (result.isBuffer) {
@@ -910,12 +992,15 @@ export default function GameInterface() {
                     }
 
                     // Update Defender pH (Player 1)
-                    activeState.player1.ph = Math.max(0, Math.min(14, activeState.player1.ph + finalPHChange));
+                    // Logic: New pH = Current - Change
+                    // Acid (Change +6) -> 7 - 6 = 1.
+                    // Base (Change -7) -> 7 - (-7) = 14.
+                    activeState.player1.ph = Math.max(0, Math.min(14, activeState.player1.ph - finalPHChange));
                     // --- pH CALCULATION END ---
 
                     const log = createLog(
                         activeState.turnNumber,
-                        `AI Serang guna ${card.name} (${result.damageDealt} HP, pH ${finalPHChange > 0 ? '+' : ''}${finalPHChange.toFixed(2)})`,
+                        `AI Serang guna ${card.name} (${result.damageDealt} HP)`,
                         `AI Serang guna ${card.name} (${result.damageDealt} HP)`,
                         'player2',
                         'attack',
@@ -924,7 +1009,7 @@ export default function GameInterface() {
                     );
                     activeState.gameLog.push(log);
 
-                    if (calcData) setActiveCalculation(calcData); // Trigger Animation
+                    if (calcData) triggerPHAnimation(calcData); // Trigger Animation via Event Bus
 
                     addVisualEffect(result.effectType as any || 'damage', result.damageDealt, result.message, { x: 25, y: 70 });
                     soundManager.playSFX('attack');
@@ -971,6 +1056,11 @@ export default function GameInterface() {
 
                 // Sync intermediate state so user sees updates!
                 syncState(activeState);
+
+                // Delay AFTER the move to allow UI to render and user to see the action
+                if (isMeaningfulMove) {
+                    await new Promise(r => setTimeout(r, 1500)); // 1.5s delay for comfortable pacing
+                }
             }
         } catch (error) {
             console.error("AI Turn Error:", error);
@@ -1129,10 +1219,9 @@ export default function GameInterface() {
                     <main className="flex-1 flex relative">
                         {/* LEFT SIDEBAR: LOGS & METERS */}
                         <aside className="w-80 bg-slate-900/50 border-r border-slate-800 p-4 flex flex-col gap-4 z-10 backdrop-blur-sm shrink-0">
-                            <PHMeterComponent
+                            <PHMeter
                                 makmalPH={me ? me.ph : 7.0}
-                                calculationData={activeCalculation}
-                                onAnimationComplete={() => setActiveCalculation(null)}
+                                onSelfApply={handleSelfApply}
                             />
                             <div className="flex-1 flex flex-col min-h-0 bg-black/20 rounded-xl p-2 border border-slate-800/50">
                                 <h3 className="font-bold text-slate-400 text-xs mb-2 flex items-center gap-2"><ScrollText className="w-4 h-4" /> Log Pertarungan</h3>
