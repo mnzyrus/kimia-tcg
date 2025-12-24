@@ -967,7 +967,7 @@ export default function GameInterface() {
                     // --- pH CALCULATION START ---
                     let finalPHChange = result.pHChange || 0;
                     let calcLogString = '';
-                    let calcData: CalculationData | null = null;
+                    let calcData: CalculationData | undefined;
 
                     // Handle Buffer Activation (AI Self-Buff or Defender Buff? Let's assume AI gets buffer if generated)
                     if (result.isBuffer) {
