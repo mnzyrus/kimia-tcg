@@ -50,19 +50,47 @@ export default function GameInterface() {
     const channelRef = useRef<any>(null);
 
     // --- MOBILE SCALING LOGIC ---
-    const BASE_WIDTH = 1366; // Changed to standard laptop width for better fit
+    // Fixed height anchor (Design Reference)
     const BASE_HEIGHT = 768;
+
+    // Dynamic dimensions state
+    const [dimensions, setDimensions] = useState({ width: 1366, height: BASE_HEIGHT });
     const [scale, setScale] = useState(1);
+    const [isNarrow, setIsNarrow] = useState(false);
 
     useEffect(() => {
         const handleResize = () => {
             const w = window.innerWidth;
             const h = window.innerHeight;
-            // Calculate scale to fit "contain" style
-            // We scale down if screen is smaller, or up if larger (optional, maybe cap at 1?)
-            const s = Math.min(w / BASE_WIDTH, h / BASE_HEIGHT);
-            setScale(s);
+
+            // 1. Calculate Aspect Ratio
+            const currentRatio = w / h;
+            // Use Game Interface Base Width (1366) as the threshold
+            const narrow = w < 1366;
+            setIsNarrow(narrow);
+            // Ultrawide: 21:9 ≈ 2.33
+
+            // 2. Determine Target Base Width
+            let targetBaseWidth = BASE_HEIGHT * currentRatio;
+
+            // 3. Clamp constraints
+            // Min: 1366 (Standard 16:9) - Don't squish elements
+            // Max: 1792 (approx 21:9) - Don't let it get too wide or UI breaks
+            targetBaseWidth = Math.max(1366, Math.min(targetBaseWidth, 1800));
+
+            setDimensions({ width: targetBaseWidth, height: BASE_HEIGHT });
+
+            // 4. Calculate Scale
+            // Determine scale factor needed to fit this new Target Box into the actual Window
+            // Since we matched the ratio (mostly), specific dimension scale should align.
+            // We use the 'contain' logic but with our custom width.
+            const scaleX = w / targetBaseWidth;
+            const scaleY = h / BASE_HEIGHT;
+
+            // Use the smaller scale to ensure it fits (safeguard), though they should be close.
+            setScale(Math.min(scaleX, scaleY));
         };
+
         window.addEventListener('resize', handleResize);
         handleResize(); // Init
         return () => window.removeEventListener('resize', handleResize);
@@ -1181,24 +1209,20 @@ export default function GameInterface() {
 
     // --- RENDER ---
     return (
-        <div className="fixed inset-0 bg-black overflow-hidden flex items-center justify-center select-none">
+        <div className={`fixed inset-0 bg-black flex items-center justify-center select-none ${isNarrow ? 'overflow-y-auto items-start' : 'overflow-hidden'}`}>
             <TouchDragPolyfill />
-
-            {/* LANDSCAPE ENFORCER */}
-            <div className="absolute inset-0 z-[9999] bg-black text-white flex flex-col items-center justify-center landscape:hidden">
-                <RotateCw className="w-12 h-12 animate-spin mb-4 text-blue-500" />
-                <p className="font-bold text-lg">Sila pusingkan peranti.</p>
-                <p className="text-sm text-slate-500">(Landscape Required)</p>
-            </div>
 
             {/* SCALED GAME CONTAINER */}
             <div
                 style={{
-                    width: BASE_WIDTH,
-                    height: BASE_HEIGHT,
+                    width: dimensions.width,
+                    height: isNarrow ? 'auto' : dimensions.height,
+                    minHeight: isNarrow ? dimensions.height : undefined,
                     transform: `scale(${scale})`,
+                    transformOrigin: isNarrow ? 'top center' : 'center',
+                    marginBottom: isNarrow ? '50vh' : 0
                 }}
-                className="relative bg-slate-950 shadow-2xl origin-center overflow-hidden flex flex-col"
+                className={`relative bg-slate-950 shadow-2xl flex flex-col transition-transform duration-300 ${isNarrow ? '' : 'origin-center overflow-hidden'}`}
             >
                 {/* GLOBAL OVERLAYS (Rendered on top of everything) */}
                 {notification && <div className={`fixed top - 20 left - 1 / 2 - translate - x - 1 / 2 px - 6 py - 3 rounded - full text - white font - bold shadow - xl border animate -in slide -in -from - top - 4 z - [100] ${notification.type === 'error' ? 'bg-red-600' : 'bg-blue-600'} `}>{notification.message}</div>}
@@ -1248,13 +1272,15 @@ export default function GameInterface() {
                         />
 
                         {/* MAIN BATTLEFIELD */}
-                        <main className="flex-1 flex relative">
-                            {/* LEFT SIDEBAR: LOGS & METERS */}
+                        <main className={`flex-1 flex relative ${isNarrow ? 'flex-col' : 'flex-row'}`}>
+                            {/* SIDEBAR: LOGS & METERS */}
+                            {/* In Narrow Mode, this becomes the Header Band */}
                             <GameSidebar
                                 playerPH={me.ph}
                                 onSelfApply={handleSelfApply}
                                 gameLog={safeGameState.gameLog}
                                 myId={myRole}
+                                isNarrow={isNarrow}
                             />
 
                             {/* CENTER: PLAY AREA */}
@@ -1271,6 +1297,7 @@ export default function GameInterface() {
                                 <PlayerZone
                                     player={me}
                                     isMyTurn={isMyTurnRender}
+                                    isNarrow={isNarrow}
                                     availableSynthesis={getAvailableSynthesis(me)}
                                     onEndTurn={handleEndTurn}
                                     onDropToZone={(c, s, i) => handleMoveCardToZone(c, s as 'hand' | 'synthesisZone', i)}

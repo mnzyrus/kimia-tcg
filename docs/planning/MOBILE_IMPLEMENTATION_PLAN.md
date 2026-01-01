@@ -143,7 +143,7 @@ export default function GameInterface() {
 - [ ] **Install Polyfill**:  `npm install mobile-drag-drop`
 - [ ] **Update Layout**: Add viewport metadata.
 - [ ] **Refactor GameInterface**: Wrap content in Scaled Div.
-- [ ] **Test**: Use Chrome DevTools "Device Toolbar" -> Select "iPhone 12 Pro" -> Rotate to Landscape.
+- [ ] **Test**: Use Chrome DevTools "Device Toolbar" -> Select various mobile devices (e.g., iPhone, Pixel, Galaxy) -> Rotate to Landscape.
 
 ---
 *Plan created by Antigravity Agent, 2026-01-02.*
