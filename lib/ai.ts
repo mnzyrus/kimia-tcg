@@ -176,7 +176,7 @@ export const OpponentAI = {
 
 // --- Gemini AI ---
 export const GeminiService = {
-    calculateMove: async (gameState: GameState, apiKey: string): Promise<{ action: 'synthesize' | 'attack' | 'trap' | 'draw' | 'end', card?: Card, index?: number, target?: any }> => {
+    calculateMove: async (gameState: GameState, apiKey: string): Promise<{ action: 'synthesize' | 'attack' | 'trap' | 'draw' | 'end', card?: Card, index?: number, target?: any, moleCost?: number }> => {
         if (!apiKey) {
             console.warn("No Gemini API Key provided. Falling back to heuristic AI.");
             return OpponentAI.calculateMove(gameState);
@@ -184,7 +184,7 @@ export const GeminiService = {
 
         try {
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-flash-lite-latest" });
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
             const prompt = createPrompt(gameState);
 
@@ -226,31 +226,39 @@ export const GeminiService = {
         }
     },
 
+    // New Chat Capability for "Tanya Ahli Kimia"
     chat: async (query: string, gameState: GameState, apiKey: string): Promise<string> => {
-        if (!apiKey) {
-            return "Sila masukkan API Key dalam tetapan untuk menggunakan fungsi ini.";
-        }
+        if (!apiKey) return "Sila masukkan API Key di Tetapan untuk menggunakan ciri ini.";
 
         try {
             const genAI = new GoogleGenerativeAI(apiKey);
-            // Switched to generic 'lite' alias which should map to the most available Lite model
-            const model = genAI.getGenerativeModel({ model: "gemini-flash-lite-latest" });
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-            const prompt = createChatPrompt(query, gameState);
+            const systemPrompt = `
+            Anda adalah "Ahli Kimia Diraja", pembantu pintar untuk permainan Kimia TCG.
+            
+            Game Context:
+            - Player pH: ${gameState.player1.ph} (Goal: 7.0 balanced, or survive)
+            - Opponent pH: ${gameState.player2.ph}
+            - Player Hand: ${gameState.player1.hand.map(c => c.name).join(', ')}
+            
+            Persona:
+            - Helpful, educational, and slightly theatrical (royal alchemist vibe).
+            - Explain chemistry concepts simply (e.g. Acid + Base -> Salt + Water).
+            - Give strategic advice based on the player's hand.
+            - Keep answers short (max 2-3 sentences) as space is limited.
+            - Language: Bahasa Melayu (Official) or English (if asked).
 
-            const result = await model.generateContent(prompt);
+            User Question: "${query}"
+            `;
+
+            const result = await model.generateContent(systemPrompt);
             const response = await result.response;
             return response.text();
 
-        } catch (error: any) {
-            console.error("Gemini Chat Error:", error);
-            if (error.message?.includes("429") || error.message?.includes("Quota")) {
-                return "⚠️ Had Kouta Dicapai (Quota Exceeded). Sila tunggu sebentar atau cuba lagi nanti.";
-            }
-            if (error.message?.includes("404")) {
-                return "⚠️ Model AI tidak dijumpai. Masalah compatibility server Google.";
-            }
-            return `Maaf, ada masalah teknikal: ${error.message || "Unknown error"}`;
+        } catch (error) {
+            console.error("Chat Error:", error);
+            return "Maaf, radas makmal meletup (Error connecting to AI).";
         }
     }
 };
@@ -309,33 +317,4 @@ function createPrompt(gameState: GameState): string {
     Prioritize attacking if you have energy and good cards.
     If you have low HP (<300), try to heal (Base cards).
   `;
-}
-
-function createChatPrompt(query: string, gameState: GameState): string {
-    return `
-    You are "Ahli Kimia AI", a helpful and wise chemistry mentor in a card game called "Kimia TCG".
-    The player is asking you a question. Answer in Bahasa Melayu (Malay) but you can use English terms for scientific concepts.
-    Keep the answer short, encouraging, and helpful for the game context.
-
-    PLAYER QUESTION: "${query}"
-
-    CURRENT GAME CONTEXT:
-    Turn: ${gameState.turnNumber}
-    Player HP: ${gameState.player1.hp} (pH ${gameState.player1.ph})
-    Opponent HP: ${gameState.player2.hp} (pH ${gameState.player2.ph})
-    Player Hand: ${JSON.stringify(gameState.player1.hand.map(c => c.name))}
-    Player Energy: ${gameState.player1.currentE}
-    Player Mass: ${gameState.player1.currentM}
-
-    GAME RULES:
-    - Strong Acids (pH near 0) and Strong Bases (pH near 14) are dangerous.
-    - Objective: Survive and defeat the opponent using Chemistry.
-    - Synthesis: Combine Elements (H, O, Na, Cl) to make Compounds.
-    - Neutralization: Acid + Base = Salt + Water (Cancels damage).
-
-    ADVICE GUIDELINES:
-    - If they ask about strategy, look at their hand and suggestions based on their current cards.
-    - If they ask about chemistry concepts (e.g. "What is Salt?"), explain it simply.
-    - Be fun and immersive!
-    `;
 }

@@ -57,26 +57,13 @@ export interface ReactionEntry {
 export interface LogEntry {
     id: number;
     turn: number;
-    // The content for the actor
-    privateMsg: string;
-    // The content for the opponent
-    publicMsg: string;
-    // Who did it?
-    actorId: 'player1' | 'player2' | 'system';
-    type?: 'draw' | 'attack' | 'synthesize' | 'trap' | 'system' | 'info';
-    // Legacy support (optional)
-    message?: string;
-    calculation?: string; // Legacy string
-    calculationData?: CalculationData; // New structured data
-}
-
-export interface CalculationData {
-    equation: string;      // e.g. "HCl -> H+ + Cl-"
-    concentration: string; // e.g. "[H+] = 1.0e-7 M"
-    formula: string;       // e.g. "pH = -log[H+]"
-    steps: string[];       // e.g. ["-log(1.0e-7)", "-(-7)", "pH = 7.0"]
-    finalResult: string;   // e.g. "7.0"
-    id?: string;           // Unique ID for animation queueing
+    message: string;
+    publicMessage?: string;
+    privateMsg?: string; // [FIX] Added alias for legacy support
+    publicMsg?: string;  // [FIX] Added alias for legacy support
+    timestamp: number;
+    type: 'action' | 'reaction' | 'system' | 'chat' | 'draw' | 'heal' | 'info' | 'attack' | 'synthesize';
+    actorId?: string;
 }
 
 export interface Player {
@@ -97,9 +84,22 @@ export interface Player {
     deck: Card[];
     trapSlot: Card | null;
     isCatalystActive?: boolean;
-    drawsThisTurn?: number;
     ph: number;
     activeBuffers: ActiveBuffer[];
+    drawCount: number;
+    drawsThisTurn?: number; // [FIX] Added compatibility property (same as drawCount)
+}
+
+// [FIX] Added missing ReactionResult interface
+export interface ReactionResult {
+    damageDealt: number;
+    recoilDamage: number;
+    message: string;
+    effectType: 'reaction_good' | 'reaction_bad' | 'damage' | 'toxic' | 'drain' | 'heal' | 'info';
+    pHChange: number;
+    isBuffer?: boolean;
+    forcePH?: number;
+    cardGenerated?: Card;
 }
 
 export interface VisualEffect {
@@ -117,21 +117,38 @@ export interface GameState {
     player1: Player;
     player2: Player;
     turnNumber: number;
-    winner?: 'player1' | 'player2';
+    winner?: 'player1' | 'player2' | 'draw';
+    paused?: boolean;
     gameLog: LogEntry[];
     activeVisualEffects: VisualEffect[];
 }
 
-export interface ReactionResult {
-    damageDealt: number;
-    recoilDamage: number;
-    message: string;
-    effectType: 'reaction_good' | 'reaction_bad' | 'damage' | 'toxic' | 'drain' | 'heal';
-    pHChange: number;
-    energyGain?: number;
-    cardGenerated?: Card;
-    forcePH?: number;
-    opponentDiscardCount?: number;
-    resourceDrain?: { e: number, m: number };
-    isBuffer?: boolean;
+export interface CalculationData {
+    id: string; // [FIX] Added ID
+    equation: string;
+    concentration: string;
+    formula: string;
+    steps: string[];
+    finalResult: string;
+}
+
+export interface GameSettings {
+    audio: {
+        masterVolume: number;
+        sfxVolume: number;
+        musicVolume: number;
+        voiceVolume: number;
+        muted: boolean;
+    };
+    visuals: {
+        quality: 'low' | 'medium' | 'high';
+        animations: boolean;
+        particles: boolean;
+    };
+    gameplay: {
+        autoEndTurn: boolean;
+        showTutorials: boolean;
+        difficulty: 'easy' | 'medium' | 'hard';
+        gameSpeed: 'slow' | 'normal' | 'fast';
+    };
 }

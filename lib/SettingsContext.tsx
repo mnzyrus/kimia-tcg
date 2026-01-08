@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+import { soundManager } from '@/lib/audio';
+
 export interface GameSettings {
     // Audio
     masterVolume: number;
@@ -57,12 +59,26 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
+    // Sync Audio Settings to Manager
+    useEffect(() => {
+        if (soundManager) {
+            soundManager.setMasterVolume(settings.masterVolume);
+            soundManager.setBGMVolume(settings.bgmVolume);
+            soundManager.setSFXVolume(settings.sfxVolume);
+        }
+    }, [settings.masterVolume, settings.bgmVolume, settings.sfxVolume]);
+
+    // Sync Settings to LocalStorage (Debounced to prevent lag on sliders)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            localStorage.setItem('kimia_settings', JSON.stringify(settings));
+        }, 500); // Wait 500ms after last change
+
+        return () => clearTimeout(timer);
+    }, [settings]);
+
     const updateSetting = <K extends keyof GameSettings>(key: K, value: GameSettings[K]) => {
-        setSettings(prev => {
-            const next = { ...prev, [key]: value };
-            localStorage.setItem('kimia_settings', JSON.stringify(next));
-            return next;
-        });
+        setSettings(prev => ({ ...prev, [key]: value }));
     };
 
     const resetSettings = () => {

@@ -96,7 +96,8 @@ export function SynthesisZone({ cards, availableSynthesis, onDrop, onClear, onSy
         setIsDragOver(false);
         try {
             const data = JSON.parse(e.dataTransfer.getData('application/json'));
-            if (data.type === 'card' && (data.card.type === 'Element' || data.card.type === 'Taktikal') && data.source === 'hand') {
+            // [UPDATED] Allow 'Sintesis' cards for Salt Recipes (Method 2)
+            if (data.type === 'card' && (data.card.type === 'Element' || data.card.type === 'Taktikal' || data.card.type === 'Sintesis') && data.source === 'hand') {
                 onDrop(data.card, data.source, data.index);
             }
         } catch (err) { console.error(err); }
@@ -107,7 +108,8 @@ export function SynthesisZone({ cards, availableSynthesis, onDrop, onClear, onSy
         setIsDragOver(false);
         try {
             const data = JSON.parse(e.dataTransfer.getData('application/json'));
-            if (data.card.type === 'Element' || data.card.type === 'Taktikal') {
+            // [UPDATED] Allow 'Sintesis' cards here too
+            if (data.card.type === 'Element' || data.card.type === 'Taktikal' || data.card.type === 'Sintesis') {
                 onDrop(data.card, data.source, data.index);
             }
         } catch (err) { }
@@ -127,19 +129,22 @@ export function SynthesisZone({ cards, availableSynthesis, onDrop, onClear, onSy
                         <p className="text-sm">Seret kad Elemen atau Mangkin ke sini</p>
                     </div>
                 )}
-                {cards.map((card: Card, i: number) => (
-                    <div key={i} className="relative group scale-75 origin-top-left w-24 h-36">
-                        <DraggableCard card={card} index={i} source="synthesisZone" onMoveToHand={onMoveCardToHand} playerE={99} playerM={99} />
-                    </div>
-                ))}
+                {cards.map((card: Card, i: number) => {
+                    if (!card) return null;
+                    return (
+                        <div key={i} className="relative group scale-75 origin-top-left w-24 h-36">
+                            <DraggableCard card={card} index={i} source="synthesisZone" onMoveToHand={onMoveCardToHand} playerE={99} playerM={99} />
+                        </div>
+                    );
+                })}
             </div>
             <div className="z-10 space-y-2">
-                {availableSynthesis.map((recipe: any) => {
+                {(availableSynthesis || []).map((recipe: any) => {
                     const moleCost = recipe.moleCost;
                     const energyCost = recipe.card.eCost || 0;
 
                     // NEW: Catalyst Discount Display Logic
-                    const catalystInZone = cards.some((c: Card) => c.symbol === 'CAT');
+                    const catalystInZone = cards.some((c: Card) => c && c.symbol === 'CAT');
                     const finalECost = catalystInZone ? Math.max(0, energyCost - 2) : energyCost;
 
                     const hasEnergy = currentE >= finalECost;

@@ -289,71 +289,79 @@ export function ProfileSelector({ onSelectProfile, onCancel }: { onSelectProfile
 }
 
 // --- SETTINGS MODAL ---
-export function SettingsModal({ onClose }: { onClose: () => void }) {
+
+interface GradientSliderProps {
+    label: string;
+    value: number;
+    onChange: (val: number) => void;
+    icon: React.ReactNode;
+    colorClass: string;
+    description?: string;
+}
+
+const GradientSlider: React.FC<GradientSliderProps> = ({ label, value, onChange, icon, colorClass, description }) => {
+    // Local state for instant drag feedback (decouples from Context latency)
+    const [localValue, setLocalValue] = useState(value);
+
+    // Sync if external settings change (e.g. Reset)
+    useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    const percentage = localValue * 100;
+
+    return (
+        <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-2xl select-none group hover:border-slate-700 transition-colors relative">
+            <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full bg-slate-900 ${colorClass} bg-opacity-10 text-${colorClass.replace('bg-', '')}`}>
+                        {icon}
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-white text-sm">{label}</h4>
+                        {description && <p className="text-xs text-slate-500">{description}</p>}
+                    </div>
+                </div>
+                <span className={`text-xl font-bold ${colorClass.replace('bg-', 'text-')}`}>{Math.round(percentage)}%</span>
+            </div>
+
+            <div className="relative h-6 flex items-center">
+                {/* Track */}
+                <div className="absolute w-full h-2 bg-slate-800 rounded-full overflow-hidden pointer-events-none">
+                    <div className={`h-full ${colorClass}`} style={{ width: `${percentage}%` }} />
+                </div>
+
+                {/* Thumb - Removed transitions for instant tracking */}
+                <div
+                    className={`absolute h-5 w-5 bg-white border-2 border-slate-900 rounded-full shadow-[0_0_10px_rgba(255,255,255,0.3)] pointer-events-none flex items-center justify-center`}
+                    style={{ left: `${percentage}%`, transform: `translate(-50%, 0)` }}
+                >
+                    <div className={`w-1.5 h-1.5 rounded-full ${colorClass}`} />
+                </div>
+
+                {/* Input - Massive Hit Area + Touch Action None */}
+                <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={localValue}
+                    onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        setLocalValue(v);
+                        onChange(v);
+                    }}
+                    className="absolute w-full h-12 top-1/2 -translate-y-1/2 transform opacity-0 z-50 cursor-pointer touch-none active:cursor-grabbing"
+                    aria-label={label}
+                />
+            </div>
+        </div>
+    );
+};
+
+export function SettingsModal({ onClose, onSurrender }: { onClose: () => void, onSurrender?: () => void }) {
     const { settings, updateSetting, resetSettings } = useGameSettings();
     const [activeTab, setActiveTab] = useState<'audio' | 'visual' | 'gameplay'>('audio');
-
-    // Reusable Gradient Slider Component - Hybrid Approach (Native Input Overlay)
-    interface GradientSliderProps {
-        label: string;
-        value: number;
-        onChange: (val: number) => void;
-        icon: React.ReactNode;
-        colorClass: string;
-        description?: string;
-    }
-
-    const GradientSlider: React.FC<GradientSliderProps> = ({ label, value, onChange, icon, colorClass, description }) => {
-        const percentage = Math.round(value * 100);
-
-        return (
-            <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-2xl select-none group hover:border-slate-700 transition-colors">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-full bg-slate-900 ${colorClass} bg-opacity-10 text-${colorClass.replace('bg-', '')}`}>
-                            {icon}
-                        </div>
-                        <div>
-                            <h4 className="font-bold text-white text-sm">{label}</h4>
-                            {description && <p className="text-xs text-slate-500">{description}</p>}
-                        </div>
-                    </div>
-                    <span className={`text-xl font-bold ${colorClass.replace('bg-', 'text-')}`}>{percentage}%</span>
-                </div>
-
-                {/* Hybrid Slider: Native Input on top of Visuals */}
-                <div className="relative h-6 flex items-center">
-                    {/* Visual Track (Background) */}
-                    <div className="absolute w-full h-2 bg-slate-800 rounded-full overflow-hidden pointer-events-none">
-                        <div
-                            className={`h-full ${colorClass} transition-all duration-75 ease-out`}
-                            style={{ width: `${percentage}%` }}
-                        />
-                    </div>
-
-                    {/* Visual Thumb - Reacts to value changes */}
-                    <div
-                        className={`absolute h-5 w-5 bg-white border-2 border-slate-900 rounded-full shadow-[0_0_10px_rgba(255,255,255,0.3)] pointer-events-none flex items-center justify-center transition-all duration-75 ease-out`}
-                        style={{ left: `${percentage}%`, transform: `translate(-50%, 0)` }}
-                    >
-                        <div className={`w-1.5 h-1.5 rounded-full ${colorClass}`} />
-                    </div>
-
-                    {/* The Real Input (Invisible, covers everything, accurate native drag) */}
-                    <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={value}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(parseFloat(e.target.value))}
-                        className="absolute inset-0 w-full h-full opacity-0 z-50 cursor-pointer active:cursor-grabbing"
-                        aria-label={label}
-                    />
-                </div>
-            </div>
-        );
-    };
 
     const TabButton = ({ id, label, icon }: { id: 'audio' | 'visual' | 'gameplay', label: string, icon: React.ReactNode }) => (
         <button
@@ -386,6 +394,15 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                     </div>
 
                     <div className="pt-6 border-t border-slate-800 space-y-3">
+                        {onSurrender && (
+                            <button
+                                onClick={onSurrender}
+                                className="w-full py-3 mb-2 rounded-xl bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 font-bold group"
+                            >
+                                <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                                Tamatkan Permainan
+                            </button>
+                        )}
                         <button onClick={resetSettings} className="w-full py-2 text-xs text-slate-500 hover:text-white transition-colors flex items-center justify-center gap-2">
                             <Recycle className="w-3 h-3" /> Reset Default
                         </button>

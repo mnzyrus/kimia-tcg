@@ -13,12 +13,14 @@ export function PHMeter({ makmalPH, onSelfApply }: { makmalPH: number, onSelfApp
     const [playingData, setPlayingData] = useState<CalculationData | null>(null);
 
     // Subscribe to Event Bus
+    // Subscribe to Event Bus
     useEffect(() => {
         const unsubscribe = subscribeToPHAnimation((data) => {
-            // Strictly push to queue. 
-            // The unique ID check is handled by the event trigger source mostly, 
-            // but we can trust the bus to only send valid triggers.
-            setQueue(prev => [...prev, data]);
+            // [FIX] Defer state update to avoid "Cannot update component while rendering another component"
+            // This happens because the event is triggered continuously during GameInterface updates.
+            requestAnimationFrame(() => {
+                setQueue(prev => [...prev, data]);
+            });
         });
         return unsubscribe;
     }, []);
@@ -114,8 +116,13 @@ export function PHMeter({ makmalPH, onSelfApply }: { makmalPH: number, onSelfApp
         <>
             {/* GLOBAL OVERLAY FOR DRAG FEEDBACK */}
             {isDragOver && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none bg-black/20 backdrop-blur-[2px] animate-in fade-in duration-300">
-                    <div className="bg-white/90 p-8 rounded-3xl shadow-2xl border-4 border-indigo-400 flex flex-col items-center gap-4 animate-in zoom-in-95 duration-300">
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-[2px] animate-in fade-in duration-300"
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                >
+                    <div className="bg-white/90 p-8 rounded-3xl shadow-2xl border-4 border-indigo-400 flex flex-col items-center gap-4 animate-in zoom-in-95 duration-300 pointer-events-none">
                         <div className="bg-indigo-100 p-4 rounded-full">
                             <Activity className="w-12 h-12 text-indigo-600 animate-pulse" />
                         </div>
@@ -197,7 +204,7 @@ export function PHMeter({ makmalPH, onSelfApply }: { makmalPH: number, onSelfApp
                                 <p className="text-slate-500 text-[10px] mb-0.5">Langkah 3: Perubahan pH</p>
                                 <div className="bg-white p-1.5 rounded border-l-2 border-yellow-500 shadow-sm space-y-1">
                                     <div className="text-slate-500">{playingData.formula}</div>
-                                    {playingData.steps.map((s, i) => (
+                                    {playingData.steps.map((s: string, i: number) => (
                                         <div key={i} className="text-slate-700 pl-2 border-l border-slate-200">{s}</div>
                                     ))}
                                 </div>

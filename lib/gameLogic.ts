@@ -42,25 +42,25 @@ export function calculateBufferedPHChange(initialChange: number, activeBuffers: 
     steps.push(`pH Bahan: ${substPHStr}`);
 
     // Step 3: pH Change Value
-    // initialChange passed here IS the Delta (calculated as 7.0 - substPH previously or passed directly).
-    // Let's assume initialChange IS the intended raw delta.
-    const rawDelta = initialChange;
+    // initialChange passed here IS the Delta from 7.0.
+    // User requested "Swap positive with negative".
+    // Previous: 7.0 - pH (Acid=+6, Base=-7).
+    // New: pH - 7.0 (Acid=-6, Base=+7).
+    // We assume strict calculation based on Substance pH if available, else usage of initialChange.
+
+    // Recalculate rawDelta based on substancePH if possible for consistency
+    const substPH = substancePH !== undefined ? substancePH : 7.0;
+    const rawDelta = substPH - 7.0; // [CHANGED] Swapped 7.0 and substPH
+
     steps.push(`Perubahan pH (Delta): ${rawDelta > 0 ? '+' : ''}${rawDelta.toFixed(2)}`);
 
     // Calculation (Not shown as step, but part of logic)
     const finalDelta = rawDelta * multiplier;
 
-    // Step 4: Final pH Number (User's pH) - logic handled by Caller?
-    // User requested: "4. the final number of pH of the user would be".
-    // This function returns the DELTA. The caller (GameInterface) knows "User's Current pH".
-    // So this function can't fully generate Step 4 without knowing Current pH.
-    // However, I can return the textual Step 4 template or let the caller append it.
-    // Let's return formatted data so UI can render it.
-
     const calculationData: CalculationData = {
         equation: activeBuffers.length > 0 ? `Buffer: ${bufferNames.join(', ')}` : "Tiada Buffer",
         concentration: `pH Bahan = ${substPHStr}`,
-        formula: `ΔpH = (7.0 - ${substPHStr}) × ${multiplier.toFixed(2)}`,
+        formula: `ΔpH = (${substPHStr} - 7.0) × ${multiplier.toFixed(2)}`, // [CHANGED] Updated formula text
         steps: [
             `Buffer Multiplier: ${multiplier.toFixed(2)}`,
             `Raw Delta: ${rawDelta.toFixed(2)}`,
@@ -299,12 +299,12 @@ export function initializeGame(p1Name: string, p2Name: string): GameState {
     const player1: Player = {
         id: 'player1', name: p1Name || 'Pemain 1', hp: 1000, maxHP: 1000, currentE: 4, maxE: 10, currentM: 15, maxM: 20,
         hand: [], makmal: [], synthesisZone: [], bukuFormula: [...sintesisCards], timbunanBuang: [], statusEffects: [], deck: p1Deck, trapSlot: null,
-        isCatalystActive: false, drawsThisTurn: 0, ph: 7.0, activeBuffers: []
+        isCatalystActive: false, drawsThisTurn: 0, drawCount: 0, ph: 7.0, activeBuffers: []
     };
     const player2: Player = {
         id: 'player2', name: p2Name || 'Pemain 2', hp: 1000, maxHP: 1000, currentE: 4, maxE: 10, currentM: 15, maxM: 20,
         hand: [], makmal: [], synthesisZone: [], bukuFormula: [...sintesisCards], timbunanBuang: [], statusEffects: [], deck: p2Deck, trapSlot: null,
-        isCatalystActive: false, drawsThisTurn: 0, ph: 7.0, activeBuffers: []
+        isCatalystActive: false, drawsThisTurn: 0, drawCount: 0, ph: 7.0, activeBuffers: []
     };
     for (let i = 0; i < 10; i++) { if (player1.deck.length) player1.hand.push(player1.deck.pop()!); if (player2.deck.length) player2.hand.push(player2.deck.pop()!); }
 
@@ -315,5 +315,21 @@ export function initializeGame(p1Name: string, p2Name: string): GameState {
         player2.hand.push({ ...hCard, id: `H-init-p2-${Date.now()}` });
     }
 
-    return { currentPlayer: 'player1', player1, player2, turnNumber: 1, gameLog: [{ id: 0, message: 'Permainan bermula!', privateMsg: 'Permainan bermula!', publicMsg: 'Permainan bermula!', actorId: 'system', turn: 0 }], activeVisualEffects: [] };
+    return {
+        currentPlayer: 'player1',
+        player1,
+        player2,
+        turnNumber: 1,
+        gameLog: [{
+            id: 0,
+            message: 'Permainan bermula!',
+            privateMsg: 'Permainan bermula!',
+            publicMsg: 'Permainan bermula!',
+            actorId: 'system',
+            turn: 0,
+            timestamp: Date.now(),
+            type: 'info'
+        }],
+        activeVisualEffects: []
+    };
 }

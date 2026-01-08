@@ -1,15 +1,18 @@
-import React from 'react';
 import { ScrollText } from 'lucide-react';
 import { PHMeter } from '../PHMeter';
 import { ActionLog } from '../GameUI';
-import { LogEntry } from '@/types';
+import { LogEntry, Card } from '@/types'; // Fixed imports
 
 interface GameSidebarProps {
     playerPH: number;
-    onSelfApply: (card: any, source: string, index: number) => void;
+    onSelfApply: (card: Card, source: string, index: number) => void;
     gameLog: LogEntry[];
     myId: string;
-    isNarrow?: boolean;
+    isNarrow?: boolean; // Legacy prop, kept for compatibility but largely superseded by mode
+    // [NEW] Props for Drawer Mode
+    mode?: 'sidebar' | 'drawer';
+    isOpen?: boolean;
+    onClose?: () => void;
 }
 
 export function GameSidebar({
@@ -34,6 +37,8 @@ export function GameSidebar({
                 </h3>
                 <ActionLog actions={gameLog} myId={myId} />
             </div>
+
+
         </aside>
     );
 }

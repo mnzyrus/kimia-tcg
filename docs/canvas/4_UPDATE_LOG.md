@@ -89,4 +89,113 @@ This file records the "Gap" between versions. New updates are appended here.
 *   **Result**: Cards in Mobile Mode now use a consistent size (`scale-90`) and spacing, ensuring readability is never compromised for "fit".
 
 ---
+### [LATEST] Update 1.9 - Codebase Stabilization & Interactive Overlays
+**Release Date**: 2026-01-02
+**Focus**: Bug Fixing / UX Polish
+
+#### 1. Core Component Restoration
+*   **The Issue**: Critical files (`useGameState`, `Overlays`) were missing or disconnected, causing the game to crash on load.
+*   **The Fix**: Restored `useGameState.ts` hook logic and created `Overlays.tsx` with proper animations.
+*   **Result**: Game now loads 100% sans errors.
+
+#### 2. Non-Blocking Animations
+*   **The Issue**: The "Start Turn" banner would stay on screen forever, blocking gameplay.
+*   **The Fix**: Implemented a self-cleaning timer (2.5s) in `StartTurnOverlay`.
+*   **Result**: Overlays now appear, animate, and disappear automatically.
+
+#### 3. Mobile Player Zone
+*   **The Issue**: Mobile layout was indistinguishable from Desktop in the Player Zone.
+*   **The Fix**: Enforced a distinct Vertical Stack layout with horizontal scrolling for the hand.
+*   **Impact**: clear separation of content on narrow screens (Phone/Tablet).
+
+### [LATEST] Update 1.10 - Audio Volume Integrity
+**Release Date**: 2026-01-03
+**Focus**: Bug Fixing / System Stability
+
+#### 1. Volume Control Decoupling
+*   **The Issue**: Users reported volume settings in the UI had no effect.
+*   **The Cause**: `GameInterface` contained redundant audio initialization logic that overrode the `SettingsContext` updates, locking volume to default values or creating race conditions.
+*   **The Fix**: Removed volume management from `GameInterface.tsx`. It now strictly handles *Playback State* (Play/Stop), while `SettingsContext.tsx` remains the sole authority for *Volume State*.
+*   **Result**: Volume sliders now correctly adjust the global `SoundManager` in real-time.
+
+#### 2. Slider UX Optimization
+*   **The Request**: User requested smoother, more precise dragging.
+*   **The Fix**:
+    *   **Debounced Storage**: Moved `localStorage` writes to a debounced `useEffect` (500ms delay). This prevents synchronous file I/O on every pixel of drag movement, ensuring 60fps performance.
+    *   **Visual Precision**: Removed `Math.round` from the CSS width/position calculations. The visual thumb now follows the cursor exactly (sub-pixel), while the displayed number remains readable as an integer.
+
+#### 3. Hotfix: SettingsContext Import Restoration
+*   **The Bug**: `ReferenceError: soundManager is not defined` crashed the app.
+*   **The Cause**: The import statement for `soundManager` was accidentally removed during a previous refactor or merge.
+*   **The Fix**: Restored `import { soundManager } from '@/lib/audio';` to `lib/SettingsContext.tsx`.
+
+#### 4. Slider UX Structural Fix
+*   **The Issue**: Sliders would stop dragging randomly.
+*   **Root Cause**: The `GradientSlider` component was defined *inside* `SettingsModal`, causing it to unmount and remount on every render (losing drag state).
+*   **The Fix**:
+    *   **Extracted Component**: Moved `GradientSlider` to module scope.
+    *   **Local State**: Implemented internal state for instant 60fps feedback.
+    *   **Touch Optimization**: Added `touch-action: none` and increased hit-box height (48px) for effortless mobile grabbing.
+
+#### 5. Surrender Feature
+*   **The Request**: Add "Tamatkan Permainan" button to Settings.
+*   **The Logic**: gracefully exits the game.
+    *   **UI**: Red danger button added above "Reset Default".
+    *   **Flow**: Click -> Modal Closes -> AI displays "Analisis data selesai. Jumpa lagi!" -> 3s Delay -> Return to Main Menu.
+    *   **Condition**: Only visible during active gameplay (not in Main Menu settings).
+
+#### 6. Mechanics Restoration (Draw, Defense, AI)
+*   **Draw Card**: Implemented standard logic (Cost: 1 Energy, Max 3 per turn).
+*   **Defense (Self Apply)**: Enabled consumption of `heal` and `status` type cards (e.g., Potions).
+*   **AI Opponent**: Re-activated the AI Turn Loop. The AI now waits 2 seconds and ends its turn, passing control back to the player, resolving the "frozen game" state.
+
+### [LATEST] Update 1.11 - Deep Mechanics Restoration (Restore Point)
+**Release Date**: 2026-01-03
+**Focus**: Feature Parity / Gameplay Depth
+
+#### 1. Attack System Revamped (Restore Point)
+*   **pH Vulnerability**: Implemented dynamic damage multipliers based on attacker's *Sintesis Type* and defender's *pH*.
+    *   **Acid Attacks**: Deal x1.25-2.0 damage to Low pH (Acidic) targets.
+    *   **Base Attacks**: Deal x1.25-2.0 damage to High pH (Alkaline) targets.
+*   **Status Effects**: Restored logic to apply **Blind**, **Stun**, **Weakness**, and **Dryness** based on reaction results.
+*   **Buffer Activation**: Defensive buffer cards now correctly activate and apply duration-based protection.
+
+#### 2. Synthesis & Economy
+*   **Catalyst Logic**: Holding a 'CAT' card (in Zone or Hand) now reduces Synthesis Energy cost by 2.
+*   **Neutral pH Bonus**: Ending turn with perfect **pH 7.0** awards **+2 Energy / +2 Mass**. (pH 6-8 awards +1/+1).
+*   **Round Start Draw**: Implemented rule where **BOTH players draw 2 cards** when the Turn Number increases (Start of Round).
+
+#### 3. Technical Stability
+*   **Log Type Fixes**: Enforced strict typing for `LogEntry` (`as const`) to prevent TypeScript compilation errors.
+*   **SSR Crash Diagnosis**: Identified environmental file-lock causing 500 Errors during `npm run build` vs `dev` conflict.
+
+
+### [LATEST] Update 1.12 - AI Polish & Glitch Fixes
+**Release Date**: 2026-01-03
+**Focus**: UX Polish / Bug Fixing
+
+#### 1. AI "Liveness" & Pacing
+*   **The Issue**: AI moves felt instant and robotic, overwhelming the player.
+*   **The Fix**:
+    *   **Thinking Delay**: Added a 1.0s "Thinking..." pause before the AI starts its turn.
+    *   **Action Pacing**: Increased delay between AI actions from 1.5s to **2.5s**, making the flow easier to follow.
+    *   **Notification**: "AI Thinking..." status is now visually distinct.
+
+#### 2. Energy & Resource Rules (Finalized)
+*   **Base Rule**: Both players now receive **+3 Energy** at the start of every turn.
+*   **Bonus Rule**: The "pH Stability Bonus" (User request) has been restored. Players ending their turn with **stable pH (6-8)** receive an *additional* +1/+2 Energy & Mass.
+*   **Symmetry**: This logic is now identical for both Human and AI players.
+
+#### 3. Self-Apply pH Adjustment
+*   **Feature**: Enabled players to use Acid/Base/Chemical cards on themselves.
+*   **Logic**: Instead of an error, the card now adjusts the player's pH (calculating buffers and delta) without dealing damage.
+*   **Feedback**: The system notifies exactly how much pH increased or decreased (e.g., "pH berkurang 1.5").
+
+#### 4. Critical Fix: Card Duplication Glitch
+*   **The Bug**: Rapidly dragging cards between Hand and Synthesis Zone could duplicate them due to validation race conditions.
+*   **The Fix**: Implemented strict **ID-based validation** in `useGameState.ts`. The system now verifies the unique Card ID exists in the source before moving it, preventing "phantom" duplicates.
+*   **Enhancement**: Added **Drag-to-Hand** support. Players can now drag cards OUT of the Synthesis Zone and drop them back onto the Hand area to retrieve them.
+
+---
+---
 *End of Update Log*
