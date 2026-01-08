@@ -196,6 +196,40 @@ This file records the "Gap" between versions. New updates are appended here.
 *   **The Fix**: Implemented strict **ID-based validation** in `useGameState.ts`. The system now verifies the unique Card ID exists in the source before moving it, preventing "phantom" duplicates.
 *   **Enhancement**: Added **Drag-to-Hand** support. Players can now drag cards OUT of the Synthesis Zone and drop them back onto the Hand area to retrieve them.
 
+
+### [LATEST] Update 1.13 - pH Mechanics & UX Refinement
+**Release Date**: 2026-01-08
+**Focus**: Gameplay Mechanics / UX Polish / Code Quality
+
+#### 1. pH Animation Restoration
+*   **The Change**: Reverted the experimental separation of the pH Animation component (`PHAnimationDisplay.tsx`).
+*   **Reasoning**: To simplify the component architecture and ensure consistent behavior, the animation logic was reintegrated directly into the `PHMeter.tsx` component.
+*   **Outcome**: A single, robust component now handles both pH display and the calculation animation sequence.
+
+#### 2. Enhanced "Self-Apply" UX
+*   **The Issue**: Players found it difficult to trigger "Self-Apply" because the drop zone was too small (limited to the meter box), and the "LEPASKAN!" overlay blocked interaction.
+*   **The Fix**:
+    *   **Interactive Overlay**: The full-screen "LEPASKAN!" drag feedback layer was converted from a passive visual to an active **Drop Zone**.
+    *   **Result**: Players can now drop a card *anywhere* on the screen once the overlay appears to trigger the effect.
+
+#### 3. Standardized pH Calculation Signs
+*   **The Change**: Inverted the mathematical signs for pH changes to match intuitive expectations.
+*   **New Standard**:
+    *   **Acidic Changes**: Represented as **Negative (-)** (e.g., pH 7.0 -> 1.0 is a change of `-6.0`).
+    *   **Alkaline Changes**: Represented as **Positive (+)** (e.g., pH 7.0 -> 14.0 is a change of `+7.0`).
+*   **Impact**: clearer visual feedback for players understanding the direction of pH shifts.
+
+#### 4. AI Attack Visualization
+*   **The Feature**: Enabled the pH Calculation Animation when the **AI attacks the player**.
+*   **Logic**: Hooked the `triggerPHAnimation` event into the AI's `processAITurn` logic in `useGameState.ts`.
+*   **Benefit**: Users can now visualize exactly how the AI's acid/base attacks are affecting their own pH balance, seeing the same math breakdown as their own moves.
+
+#### 5. Code Quality & Type Safety
+*   **Action**: Resolved persistent TypeScript errors and React state update warnings.
+*   **Fixes**:
+    *   **Deferral**: Wrapped state updates in `requestAnimationFrame` to prevent `Cannot update component while rendering` errors during synchronous event triggers.
+    *   **Type Definitions**: Updated `types/index.ts` to include missing properties (`drawCount`, `LogEntry` timestamps, `ReactionResult`).
+
 ---
 ---
 *End of Update Log*
