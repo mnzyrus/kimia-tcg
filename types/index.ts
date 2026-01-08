@@ -64,6 +64,7 @@ export interface LogEntry {
     timestamp: number;
     type: 'action' | 'reaction' | 'system' | 'chat' | 'draw' | 'heal' | 'info' | 'attack' | 'synthesize';
     actorId?: string;
+    calculation?: string; // [FIX] Added missing property used in GameUI
 }
 
 export interface Player {
