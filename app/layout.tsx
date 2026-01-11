@@ -14,6 +14,8 @@ export const viewport: Viewport = {
     themeColor: '#0f172a',
 };
 
+import { TouchDragPolyfill } from "@/components/game/TouchPolyfill";
+
 export default function RootLayout({
     children,
 }: Readonly<{
@@ -21,7 +23,10 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" suppressHydrationWarning>
-            <body suppressHydrationWarning>{children}</body>
+            <body suppressHydrationWarning>
+                <TouchDragPolyfill />
+                {children}
+            </body>
         </html>
     );
 }

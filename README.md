@@ -18,6 +18,8 @@
 *   **💧 Buffers & pH Neutralization (v2.1)**:
     *   **pH Stability**: Use Water ($H_2O$) to reset dangerous pH levels.
     *   **Buffers**: Use specific salts to resist pH changes. [Read full documentation](docs/updates/UPDATE_1_6_PH_NEUTRALIZATION.md).
+*   **📱 Mobile Touch Support (v2.1)**:
+    *   **Drag & Drop**: Native-like touch support enabled via polyfill. [Read technical details](docs/updates/UPDATE_1_7_MOBILE_SUPPORT.md).
 
 ## 🎮 How to Play
 
