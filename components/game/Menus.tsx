@@ -1,10 +1,12 @@
 
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { GameButton } from './CardComponents';
 import { Atom, Swords, Microscope, Trophy, Info, Settings as SettingsIcon, LogOut, Users, Cpu, Loader2, ArrowRight, Dna, Play, Plus, Search, X, LogIn } from 'lucide-react';
 import { Card } from '@/types';
 import Link from 'next/link';
 import { elementCards } from '@/lib/gameData';
+import { createProfile, getProfile, createMatch, joinMatch, subscribeToMatch, UserProfile } from '@/lib/supabaseService';
 
 export function MainMenu({ onStartGame, onOpenLibrary, onOpenTutorial, onOpenSettings, onChangeProfile, currentProfile }: any) {
     return (
@@ -70,17 +72,93 @@ export function MainMenu({ onStartGame, onOpenLibrary, onOpenTutorial, onOpenSet
                     <button onClick={onOpenSettings} className="p-2 hover:bg-slate-800 rounded-full transition-colors" title="Tetapan">
                         <SettingsIcon className="w-6 h-6" />
                     </button>
-                    <span className="text-xs font-mono">v2.0 (Online Build)</span>
+                    <span className="text-xs font-mono">v2.1 (Supabase Integration)</span>
                 </div>
             </div>
         </div>
     );
 }
 
-export function Lobby({ onJoinRoom, onCreateRoom, onRandomMatch, onCancel, socketStatus }: { onJoinRoom: (roomId: string) => void, onCreateRoom: (roomId: string) => void, onRandomMatch: () => void, onCancel: () => void, socketStatus: string }) {
+export function Lobby({ onJoinRoom, onCreateRoom, onRandomMatch, onCancel, socketStatus, onStartGame }: { onJoinRoom: (roomId: string) => void, onCreateRoom: (roomId: string) => void, onRandomMatch: () => void, onCancel: () => void, socketStatus: string, onStartGame: (mode: 'pve' | 'pvp', roomId?: string) => void }) {
     const [roomId, setRoomId] = useState('');
     const [mode, setMode] = useState<'menu' | 'join' | 'create'>('menu');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [statusMsg, setStatusMsg] = useState('');
+
+    // Fetch current profile ID from local storage (or context if available)
+    // For now, assume stored as 'kimia_profile' text JSON
+    const getMyId = () => {
+        try {
+            const p = JSON.parse(localStorage.getItem('kimia_profile') || '{}');
+            return p.id || 'guest';
+        } catch (e) { return 'guest'; }
+    };
+
+    const handleCreate = async () => {
+        setIsProcessing(true);
+        setStatusMsg('Mencipta bilik...');
+        const code = `ROOM-${Math.floor(Math.random() * 10000)}`;
+
+        // Ensure profile exists or is created for this auth session
+        // Note: In a full app, profile creation typically happens at 'Login'. 
+        // Here we just ensure we have a profile to link to.
+        // If we are "Guest", createProfile ensures we have a row in profiles table.
+        // It uses upsert so strictly safe to call.
+        await createProfile(`Player-${Math.floor(Math.random() * 1000)}`);
+
+        const match = await createMatch(code); // No playerId arg needed
+
+        if (match) {
+            setRoomId(code);
+            // Subscribe to this match to wait for P2
+            const sub = subscribeToMatch(match.id, (payload) => {
+                if (payload.new && payload.new.status === 'playing') {
+                    // P2 Joined!
+                    // Start Game
+                    onStartGame('pvp', code);
+                    sub.unsubscribe();
+                }
+            });
+
+            setIsProcessing(false);
+            setStatusMsg('Menunggu pemain lain...');
+            // Wait here... UI should probably show waiting spinner + Cancel button
+            // But for now, calling onCreateRoom to switch view if that's what it did
+            // onCreateRoom(code); // Original behavior
+
+            // Actually, we stay in Lobby UI waiting? 
+            // The original logic called onCreateRoom immediately.
+            // Let's keep it simple: Stay in creating mode until event fires? 
+            // Or use the onCreateRoom callback to show a "Waiting Lobby".
+            // Implementation Plan says: Lobby listens. 
+            // Let's assume onStartGame triggers the view switch.
+
+        } else {
+            setIsProcessing(false);
+            setStatusMsg('Gagal mencipta bilik. Cuba lagi.');
+        }
+    };
+
+    const handleJoin = async () => {
+        if (!roomId) return;
+        setIsProcessing(true);
+        setStatusMsg('Menyertai bilik...');
+
+        // Ensure profile
+        await createProfile(`Player-${Math.floor(Math.random() * 1000)}`);
+
+        const match = await joinMatch(roomId); // No playerId arg needed
+        setIsProcessing(false);
+
+        if (match) {
+            // Success joining!
+            // Directly start game
+            onStartGame('pvp', roomId);
+            onJoinRoom(roomId);
+        } else {
+            setStatusMsg('Bilik tidak dijumpai atau penuh.');
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-slate-900/95 flex items-center justify-center p-4 z-50">
@@ -125,36 +203,31 @@ export function Lobby({ onJoinRoom, onCreateRoom, onRandomMatch, onCancel, socke
                                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white text-lg font-mono focus:outline-none focus:border-blue-500 transition-all text-center tracking-widest uppercase"
                             />
                         </div>
-                        <GameButton onClick={() => onJoinRoom(roomId)} disabled={!roomId} className="w-full py-3 justify-center">
-                            Masuk
+                        {statusMsg && <p className="text-xs text-red-400 text-center">{statusMsg}</p>}
+                        <GameButton onClick={handleJoin} disabled={!roomId || isProcessing} className="w-full py-3 justify-center">
+                            {isProcessing ? <Loader2 className="animate-spin" /> : 'Masuk'}
                         </GameButton>
-                        <button onClick={() => setMode('menu')} className="w-full text-slate-500 text-xs hover:text-white">Kembali</button>
+                        <button onClick={() => { setMode('menu'); setStatusMsg(''); }} className="w-full text-slate-500 text-xs hover:text-white">Kembali</button>
                     </div>
                 )}
 
                 {mode === 'create' && (
                     <div className="space-y-4 animate-in slide-in-from-left">
                         <div className="bg-slate-950 p-4 rounded-xl border border-dashed border-slate-700 text-center">
-                            <p className="text-xs text-slate-500 mb-2">Kod Bilik Anda:</p>
-                            <div className="text-2xl font-mono text-green-400 font-bold select-all">
-                                {roomId || `ROOM-${Math.floor(Math.random() * 1000)}`}
-                            </div>
-                            <p className="text-[10px] text-slate-600 mt-2">Kongsikan kod ini kepada rakan.</p>
+                            <p className="text-xs text-slate-500 mb-2">Sila tekan 'Mula' untuk menjana bilik.</p>
                         </div>
-                        <GameButton onClick={() => {
-                            const code = roomId || `ROOM-${Math.floor(Math.random() * 1000)}`;
-                            onCreateRoom(code);
-                        }} className="w-full py-3 justify-center bg-green-600 hover:bg-green-500">
-                            Mula Menunggu
+                        {statusMsg && <p className="text-xs text-blue-400 text-center">{statusMsg}</p>}
+                        <GameButton onClick={handleCreate} disabled={isProcessing} className="w-full py-3 justify-center bg-green-600 hover:bg-green-500">
+                            {isProcessing ? <Loader2 className="animate-spin" /> : 'Mula Menunggu'}
                         </GameButton>
-                        <button onClick={() => setMode('menu')} className="w-full text-slate-500 text-xs hover:text-white">Kembali</button>
+                        <button onClick={() => { setMode('menu'); setStatusMsg(''); }} className="w-full text-slate-500 text-xs hover:text-white">Kembali</button>
                     </div>
                 )}
 
                 <div className="mt-8 pt-4 border-t border-slate-800 text-center">
                     <p className="text-xs text-slate-500 flex items-center justify-center gap-2">
                         <span className={`w-2 h-2 rounded-full ${socketStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
-                        Status Pelayan: {socketStatus === 'connected' ? 'Dalam Talian' : 'Luar Talian'}
+                        Status Pelayan: {socketStatus === 'connected' ? 'Dalam Talian (Supabase)' : 'Luar Talian'}
                     </p>
                 </div>
             </div>

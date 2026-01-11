@@ -42,7 +42,7 @@ export function ActionLog({ actions, myId }: { actions: LogEntry[], myId: string
 
                 return (
                     <div key={log.id} className={`flex gap-2 mb-1 border-l-2 pl-2 ${isSystem ? 'border-yellow-500 text-yellow-200' : (isMe ? 'border-blue-500 text-blue-200' : 'border-red-500 text-red-200')}`}>
-                        <span className="text-slate-500 font-bold opacity-50">[T{log.turn}]</span>
+                        <span className="text-cyan-500 font-bold opacity-70">[T{log.turn}]</span>
                         <span>{displayMsg || log.message}</span>
                         {log.calculation && isMe && <span className="block text-yellow-400 font-mono text-[10px] ml-8">{log.calculation}</span>}
                     </div>

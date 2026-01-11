@@ -33,30 +33,30 @@
     *   **Neutralize**: If an Acid attacks a Base, they react to form a **Salt**!
 4.  **Win Condition**: Reduce your opponent's HP to 0.
 
-## 🛠️ Installation & Setup
+## 📚 Documentation Library (For Every Skill Level)
 
-Ensure you have Node.js installed.
+We have detailed guides for everyone from complete beginners to advanced developers:
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/mnzyrus/kimia-tcg.git
-    cd kimia-tcg
-    ```
+*   **🆕 Absolute Beginners**: Start here! [Read the Beginner's Guide](docs/GUIDE_FOR_BEGINNERS.md) to learn how to install, play, and win.
+*   **🚀 Deployment (Vercel)**: How to put your game online. [Read Vercel Guide](docs/deployment/VERCEL_GUIDE.md).
+*   **🔌 Database (Supabase)**: Connecting your database. [Read Connection Guide](docs/deployment/SUPABASE_CONNECTION.md).
+*   **🧪 Game Mechanics**: Deep dive into the chemistry engine. [Read Mechanics Deep Dive](docs/technical/GAME_MECHANICS_DEEP_DIVE.md).
 
-2.  **Install dependencies**:
+## 🛠️ Quick Setup (For Developers)
+
+1.  **Install dependencies**:
     ```bash
     npm install
     ```
-
-3.  **Run the game**:
+2.  **Run the game**:
     ```bash
     npm run dev
     ```
-    Open [http://localhost:3000](http://localhost:3000) in your browser.
+    Open [http://localhost:3000](http://localhost:3000).
 
 ## 🧪 Tech Stack
 
-*   **Framework**: Next.js 14 (App Router)
+*   **Framework**: Next.js 14, React 18
 *   **Language**: TypeScript
 *   **Styling**: Tailwind CSS
 *   **State Management**: Zustand (implicit via GameState hook patterns)
