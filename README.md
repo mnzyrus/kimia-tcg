@@ -15,6 +15,9 @@
 *   **🤖 Smart AI Opponent**:
     *   **Strict Timing**: The AI plays with a strategic 8-second turn timer.
     *   **Intelligent Moves**: Prioritizes synthesis and attacks, and intelligently recycles duplicate elements.
+*   **💧 Buffers & pH Neutralization (v2.1)**:
+    *   **pH Stability**: Use Water ($H_2O$) to reset dangerous pH levels.
+    *   **Buffers**: Use specific salts to resist pH changes. [Read full documentation](docs/updates/UPDATE_1_6_PH_NEUTRALIZATION.md).
 
 ## 🎮 How to Play
 
