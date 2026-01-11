@@ -101,6 +101,7 @@ export interface ReactionResult {
     isBuffer?: boolean;
     forcePH?: number;
     cardGenerated?: Card;
+    extraCard?: Card; // Bonus card (e.g. Water)
 }
 
 export interface VisualEffect {

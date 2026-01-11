@@ -160,7 +160,8 @@ export const REACTION_LIBRARY: ReactionEntry[] = [
         reactionName: '17.Buffer Zone',
         equation: 'CH₃COOH + NH₃ → CH₃COONH₄',
         tcgEffect: 'Dapat Ammonium Asetat.',
-        description: 'Garam dari asid lemah dan bes lemah. Sering digunakan untuk membuat larutan penimbal (buffer) bagi mengekalkan pH stabil.'
+        description: 'Garam dari asid lemah dan bes lemah. Sering digunakan untuk membuat larutan penimbal (buffer) bagi mengekalkan pH stabil.',
+
     },
     {
         attackerFormula: 'CH₃COOH',
@@ -617,7 +618,9 @@ export const sintesisCards: Card[] = [
         scientificJustification: 'Garam asid yang bersifat amfoterik tetapi selalunya bertindak sebagai bes lemah. Ia terurai apabila dipanaskan melebihi 50°C, membebaskan gas karbon dioksida, air, dan natrium karbonat.',
         molecularStructure: 'Ionik',
         dailyUsage: 'Ejen penaik utama dalam pembuatan kek dan roti (membebaskan CO2 untuk menaikkan adunan). Juga digunakan sebagai ubat antasid, penyerap bau dalam peti sejuk, dan agen pemadam api serbuk kering.',
-        requirements: [{ element: 'Na', count: 1 }, { element: 'H', count: 1 }, { element: 'C', count: 1 }, { element: 'O', count: 3 }]
+        requirements: [{ element: 'Na', count: 1 }, { element: 'H', count: 1 }, { element: 'C', count: 1 }, { element: 'O', count: 3 }],
+        isBuffer: true,
+        bufferMultiplier: 0.4
     },
     {
         id: 'sin-na2co3',
@@ -673,6 +676,25 @@ export const sintesisCards: Card[] = [
         dailyUsage: 'Digunakan sebagai alternatif kepada campuran Bordeaux (racun kulat dan nematisid) dalam pertanian. Juga digunakan sebagai pigmen biru dalam seramik dan cat, serta reagen dalam makmal.',
         requirements: [{ element: 'Cu', count: 1 }, { element: 'O', count: 2 }, { element: 'H', count: 2 }]
     },
+    {
+        id: 'sin-water',
+        name: 'Air (H₂O)',
+        type: 'Sintesis',
+        sintesisType: 'Neutral',
+        formula: 'H₂O',
+        description: 'Peneutral pH. Reset pH ke 7.0.',
+        eCost: 1,
+        mCost: 1,
+        power: 0,
+        tier: 0,
+        rarity: 'Biasa',
+        pH: 7.0,
+        scientificJustification: 'Molekul yang paling penting untuk kehidupan. Ia bersifat neutral (pH 7) dan terhasil daripada tindak balas peneutralan asid dan bes.',
+        molecularStructure: 'V-Shape (Bengkok)',
+        dailyUsage: 'Minuman, pelarut universal, dan agen pembersihan. Penting untuk hidrasi dan tindak balas biologi.',
+        requirements: [{ element: 'H', count: 2 }, { element: 'O', count: 1 }],
+        reactionConfig: { type: 'neutral', value: 0, description: 'Menyejukkan dan meneutralkan keadaan.' }
+    },
 ];
 
 export const garamCards: Card[] = [
@@ -704,7 +726,8 @@ export const garamCards: Card[] = [
         molecularStructure: 'Kubik',
         dailyUsage: 'Digunakan sebagai elektrolit dalam bateri sel kering (sel Leclanché). Ia juga digunakan dalam fluks pateri untuk membersihkan oksida logam dan sebagai agen perasa dalam gula-gula "Salmiakki" di negara Nordic.',
         source: 'HCl + NH₃',
-        isBuffer: false,
+        isBuffer: true,
+        bufferMultiplier: 0.6,
         reactionConfig: { type: 'status', statusName: 'Buta', description: 'Wap putih Salmiak menghalang penglihatan!' }
     },
     {
@@ -933,8 +956,8 @@ export const garamCards: Card[] = [
         dailyUsage: 'Digunakan sebagai de-icer yang boleh terbiodegradasi (mesra alam) untuk jalan raya. Juga digunakan sebagai bahan tambah makanan untuk mengawal keasidan.',
         source: 'CH₃COOH + NH₃',
         isBuffer: true,
-        bufferMultiplier: 0.15, // Good buffer but volatile
-        reactionConfig: { type: 'heal', value: 0, description: 'Penimbal menstabilkan keadaan.' }
+        bufferMultiplier: 0.3,
+        reactionConfig: { type: 'heal', value: 50, description: 'Buffer semulajadi. Menstabilkan sistem.' }
     },
     {
         id: 'salt-mgac2',
@@ -977,9 +1000,9 @@ export const garamCards: Card[] = [
         scientificJustification: 'Sebatian berwarna biru-hijau pekat. Secara sejarah dikenali sebagai pigmen "Verdigris".',
         molecularStructure: 'Dimer',
         dailyUsage: 'Dahulu digunakan sebagai pigmen dalam cat lukisan. Kini digunakan sebagai racun kulat, racun serangga, dan sebagai mangkin dalam sintesis organik.',
-        source: 'CH₃COOH + Cu(OH)₂',
+        source: 'CH₃COOH + NaOH',
         isBuffer: false,
-        reactionConfig: { type: 'damage', value: 10, description: 'Kakisan merosakkan peralatan lawan.' }
+        reactionConfig: { type: 'damage', value: 80, description: 'Haba penghabluran yang tinggi. Melecurkan musuh!' }
     },
     // Citric Acid Salts
     {
@@ -993,10 +1016,10 @@ export const garamCards: Card[] = [
         scientificJustification: 'Garam natrium asid sitrat yang mempunyai rasa masin dan sedikit masam. Ia bersifat alkali.',
         molecularStructure: 'Kompleks',
         dailyUsage: 'Digunakan sebagai bahan tambah makanan (E331) untuk rasa dan pengawet dalam minuman ringan (club soda). Dalam perubatan, ia digunakan sebagai antikoagulan (mencegah pembekuan darah) semasa pemindahan darah.',
-        source: 'C₆H₈O₇ + NaOH',
+        source: 'C₆H₈O₇ + 3NaOH',
         isBuffer: true,
-        bufferMultiplier: 0.1, // Strong triprotic buffer
-        reactionConfig: { type: 'heal', value: 20, description: 'Mengawet HP.' }
+        bufferMultiplier: 0.5,
+        reactionConfig: { type: 'heal', value: 60, description: 'Mengawal pH darah. Menyegarkan.' }
     },
     {
         id: 'salt-nh4cit',

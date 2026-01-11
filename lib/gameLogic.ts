@@ -60,11 +60,16 @@ export function calculateBufferedPHChange(initialChange: number, activeBuffers: 
     const calculationData: CalculationData = {
         equation: activeBuffers.length > 0 ? `Buffer: ${bufferNames.join(', ')}` : "Tiada Buffer",
         concentration: `pH Bahan = ${substPHStr}`,
-        formula: `ΔpH = (${substPHStr} - 7.0) × ${multiplier.toFixed(2)}`, // [CHANGED] Updated formula text
-        steps: [
-            `Buffer Multiplier: ${multiplier.toFixed(2)}`,
+        formula: activeBuffers.length > 0 ? "Buffer Mengurangkan Kesan pH" : `ΔpH = (${substPHStr} - 7.0)`,
+        steps: activeBuffers.length > 0 ? [
+            `Buffer Aktif: ${bufferNames.join(', ')}`,
+            `Rintangan: ${((1 - multiplier) * 100).toFixed(0)}%`,
+            `Kesan Asal: ${rawDelta.toFixed(2)}`,
+            `Kesan Sebenar: ${finalDelta.toFixed(2)}`
+        ] : [
             `Raw Delta: ${rawDelta.toFixed(2)}`,
-            `Buffered Delta: ${finalDelta.toFixed(2)}`
+            `Tiada Buffer (100% Kesan)`,
+            `Final Delta: ${finalDelta.toFixed(2)}`
         ],
         finalResult: `ΔpH = ${finalDelta > 0 ? '+' : ''}${finalDelta.toFixed(2)}`,
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -159,17 +164,22 @@ export function calculateReaction(attackingCard: Card, defendingCard: Card): Rea
             if (specificSalt.reactionConfig?.type === 'heal') effectType = 'heal';
             if (specificSalt.reactionConfig?.type === 'status') effectType = 'reaction_bad';
 
+            // [NEW] Add Water Card as bonus for Neutralization
+            const waterCardBase = sintesisCards.find(c => c.id === 'sin-water');
+            let extraCard: Card | undefined = undefined;
+            if (waterCardBase) {
+                extraCard = { ...waterCardBase, id: `water-gen-${Date.now()}` };
+            }
+
             return {
                 damageDealt: damageVal,
                 recoilDamage: 0,
-                message: reactionDesc,
+                message: reactionDesc + (waterCardBase ? " (+ Air Terhasil)" : ""),
                 effectType: effectType,
                 pHChange: 0,
-                forcePH: 7.0, // Neutralization resets to 7 check? Or just delta 0? usually brings closer to 7. 
-                // Logic: A complete neutralization theoretically brings pH to 7 unless excess reagent.
-                // Simplified: pH Change towards 7? 
-                // Existing code had pHChange 0. Let's stick to 0 (Neutralized).
-                cardGenerated: newSaltCard
+                forcePH: 7.0,
+                cardGenerated: newSaltCard,
+                extraCard: extraCard
             };
         }
 

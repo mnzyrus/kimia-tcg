@@ -1,20 +1,21 @@
 
 import React, { useState } from 'react';
 import { Card } from '@/types';
-import { elementCards, sintesisCards, garamCards, REACTION_LIBRARY } from '@/lib/gameData';
-import { BookOpen, X, Atom, FlaskConical, Beaker, Globe, Calculator, Shield } from 'lucide-react';
+import { elementCards, sintesisCards, garamCards, REACTION_LIBRARY, tacticalCards } from '@/lib/gameData';
+import { BookOpen, X, Atom, FlaskConical, Beaker, Globe, Calculator, Shield, Star } from 'lucide-react';
 import PeriodicTable from '@/components/PeriodicTable';
 
 // --- Perpustakaan Components ---
 
 export function Perpustakaan({ onClose }: any) {
-    const [activeTab, setActiveTab] = useState<'elements' | 'synthesis' | 'salts' | 'reactions' | 'guide'>('elements');
+    const [activeTab, setActiveTab] = useState<'elements' | 'synthesis' | 'salts' | 'reactions' | 'guide' | 'special'>('elements');
     const [selectedCard, setSelectedCard] = useState<Card | null>(null);
 
     const tabs = [
         { id: 'elements', label: 'Unsur', icon: Atom },
         { id: 'synthesis', label: 'Sintesis', icon: FlaskConical },
         { id: 'salts', label: 'Garam', icon: Beaker },
+        { id: 'special', label: 'Khas', icon: Star },
         { id: 'reactions', label: 'Reaksi', icon: BookOpen },
         { id: 'guide', label: 'Panduan pH', icon: Calculator }
     ];
@@ -69,6 +70,21 @@ export function Perpustakaan({ onClose }: any) {
                                         <p><span className="font-bold text-slate-400">Sumber:</span> {card.source}</p>
                                         <p className="line-clamp-2">{card.scientificJustification}</p>
                                         <p><span className="font-bold text-slate-400">Kegunaan:</span> {card.dailyUsage}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {activeTab === 'special' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {[...sintesisCards.filter(c => c.id === 'sin-water'), ...tacticalCards].map((card) => (
+                                <div key={card.id} onClick={() => setSelectedCard(card)} className="bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-yellow-400 transition-all cursor-pointer hover:shadow-lg hover:shadow-yellow-900/20 hover:-translate-y-1">
+                                    <div className="flex justify-between items-start mb-2"><h3 className="font-bold text-white">{card.name}</h3><span className="text-xs font-mono bg-slate-950 px-2 py-1 rounded text-yellow-400">{card.type}</span></div>
+                                    <p className="text-xs text-slate-300 mb-2">{card.description}</p>
+                                    <div className="text-[10px] text-slate-500 space-y-2">
+                                        <p className="line-clamp-3">{card.scientificJustification}</p>
+                                        <p><span className="font-bold text-slate-400">Kegunaan:</span> {card.dailyUsage || 'Pelbagai guna'}</p>
                                     </div>
                                 </div>
                             ))}
@@ -148,7 +164,7 @@ export function Perpustakaan({ onClose }: any) {
                     <LibraryDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
                 )}
             </div>
-        </div>
+        </div >
     );
 }
 

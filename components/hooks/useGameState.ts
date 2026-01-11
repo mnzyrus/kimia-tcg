@@ -4,6 +4,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { GameState, Player, Card, LogEntry } from '../../types';
 import { initializeGame as initGameLogic, calculateReaction, applySaltEffect, calculateBufferedPHChange } from '../../lib/gameLogic';
+import { sintesisCards, garamCards } from '../../lib/gameData';
 import { OpponentAI, GeminiService } from '../../lib/ai';
 import { soundManager } from '../../lib/audio';
 import { useGameSettings } from '../../lib/SettingsContext';
@@ -80,9 +81,10 @@ export function useGameState() {
                 onNotify({ message: bonusMsg, type: 'success' });
             }
 
-            // 3. Prepare Next Player (P2) -> Give +3 Energy
+            // 3. Prepare Next Player (P2) -> Give +3 Energy & +4 Mass
             const pNext = isP1 ? { ...prev.player2 } : { ...prev.player1 };
             pNext.currentE = Math.min(pNext.maxE, pNext.currentE + 3);
+            pNext.currentM = Math.min(pNext.maxM, pNext.currentM + 4);
             pNext.drawCount = 0;
 
             // Increment Turn Number ONLY when P2 ends turn (Round complete) ? Or every switch?
@@ -226,109 +228,130 @@ export function useGameState() {
 
     const handleSelfApply = (card: Card, source: string, index: number) => {
         if (!gameState) return;
-        setGameState(prev => {
-            if (!prev) return null;
-            const isP1 = prev.currentPlayer === 'player1';
-            const p = isP1 ? { ...prev.player1 } : { ...prev.player2 };
 
-            // Logic: Consumables (Potions, Buffs)
-            let msgParts: string[] = [];
-            let success = false;
-            const config = card.reactionConfig;
+        // [Refactor] Calculate EVERYTHING derived from current state BEFORE setGameState
+        // This avoids side effects inside the reducer and allows pure logic
+        const isP1 = gameState.currentPlayer === 'player1';
+        const p = isP1 ? gameState.player1 : gameState.player2; // Read specific player state
 
-            // 1. Apply Special Config Effects (Heal/Status)
-            if (config?.type === 'heal') {
-                const heal = config.value || 200;
-                p.hp = Math.min(p.maxHP, p.hp + heal);
-                msgParts.push(`(+${heal} HP)`);
-                success = true;
-            }
+        let msgParts: string[] = [];
+        let success = false;
+        const config = card.reactionConfig;
 
-            if (config?.type === 'status') {
-                msgParts.push(`(${config.statusName})`);
-                success = true;
-            }
+        // Temp variables to hold calculation results
+        let finalPH = p.ph;
+        let finalHP = p.hp;
+        let animData: import('@/types').CalculationData | undefined = undefined;
 
-            // 2. Apply pH Adjustment Logic (Acids, Bases, Salts, Elements)
-            // [UPDATED] Run this in parallel with effects (e.g. NaOH heals AND changes pH)
+        // 1. Effects
+        if (config?.type === 'heal') {
+            const heal = config.value || 200;
+            finalHP = Math.min(p.maxHP, p.hp + heal);
+            msgParts.push(`(+${heal} HP)`);
+            success = true;
+        }
+
+        if (config?.type === 'status') {
+            msgParts.push(`(${config.statusName})`);
+            success = true;
+        }
+
+        // 2. Water / pH
+        if (card.id === 'sin-water' || card.name.includes('Air (H₂O)')) {
+            finalPH = 7.0;
+            msgParts.push("pH Reset ke 7.0 (Neutral)");
+            success = true;
+        } else {
             const substancePH = card.pH !== undefined ? card.pH : (card.sintesisType === 'Asid' ? 3.0 : (card.sintesisType === 'Bes' ? 11.0 : 7.0));
             const rawDelta = 7.0 - substancePH;
 
-            // Only process meaningful pH changes
             if (Math.abs(rawDelta) >= 0.1 || card.isBuffer) {
                 const { finalChange, calculationData } = calculateBufferedPHChange(rawDelta, p.activeBuffers, substancePH);
+                animData = calculationData;
 
-                // Apply Change
-                const oldPH = p.ph;
-                p.ph = Math.max(0, Math.min(14, p.ph - finalChange));
+                // FIX: Add change (Acid returns negative delta, Base returns positive delta)
+                finalPH = Math.max(0, Math.min(14, p.ph + finalChange));
 
-                const changeVal = Math.abs(p.ph - oldPH).toFixed(2);
-                const changeDir = p.ph > oldPH ? "meningkat" : "berkurang";
+                const changeVal = Math.abs(finalPH - p.ph).toFixed(2);
+                const changeDir = finalPH > p.ph ? "meningkat" : "berkurang";
 
                 if (parseFloat(changeVal) > 0) {
                     msgParts.push(`pH ${changeDir} ${changeVal}`);
                     success = true;
-
-                    // Trigger Detailed Sidebar Animation
-                    if (isP1 && calculationData) {
-                        triggerPHAnimation(calculationData);
-                    }
-
-                    // Trigger pH Animation
-                    setGameState(prev => {
-                        if (!prev) return null;
-                        const newEffects = [...prev.activeVisualEffects, {
-                            id: Date.now(),
-                            type: (changeDir === 'meningkat' ? 'reaction_good' : 'reaction_bad') as import('@/types').VisualEffect['type'],
-                            description: `pH ${changeDir} ${changeVal}`,
-                            value: changeVal,
-                            position: { x: 50, y: 50 },
-                            createdAt: Date.now(),
-                            duration: 2000
-                        }];
-                        return { ...prev, activeVisualEffects: newEffects };
-                    });
                 }
             } else if (!success) {
-                // Only warn if NOTHING happened (no heal, no status, no pH change)
                 onNotify({ message: "Kad ini neutral (Tiada kesan).", type: 'info' });
-                return prev;
+                return;
             }
+        }
 
-            if (success) {
-                // Remove card from Hand
-                const newHand = [...p.hand];
-                // Use ID check for safety or Index if ID ambiguous
+        // Apply Side Effects safely outside
+        if (success) {
+            if (isP1 && animData) {
+                triggerPHAnimation(animData);
+            }
+            if (soundManager) soundManager.playSFX('success');
+
+            // Now Update State Purely
+            setGameState(prev => {
+                if (!prev) return null;
+                // Re-fetch player references potentially (though safe in this turn)
+                // We apply the PRE-CALCULATED values to ensure sync
+                const currP = isP1 ? prev.player1 : prev.player2;
+
+                // Copy
+                const updatedP = { ...currP };
+                updatedP.hp = finalHP;
+                updatedP.ph = finalPH;
+
+                // Handle Hand
+                const newHand = [...updatedP.hand];
                 if (newHand[index] && newHand[index].id === card.id) {
                     newHand.splice(index, 1);
                 } else {
                     const idx = newHand.findIndex(c => c.id === card.id);
                     if (idx !== -1) newHand.splice(idx, 1);
                 }
-                p.hand = newHand;
+                updatedP.hand = newHand;
+                updatedP.timbunanBuang.push(card);
 
-                let msg = `${p.name} guna ${card.name} ${msgParts.join(', ')}`;
-                p.timbunanBuang.push(card);
+                const msg = `${updatedP.name} guna ${card.name} ${msgParts.join(', ')}`;
+
+                // Add Float Animation
+                let newEffects = [...prev.activeVisualEffects];
+                if (msgParts.some(m => m.includes('pH'))) {
+                    const changePart = msgParts.find(m => m.includes('pH'));
+                    if (changePart) {
+                        newEffects.push({
+                            id: Date.now(),
+                            type: changePart.includes('meningkat') ? 'reaction_good' : 'reaction_bad',
+                            description: changePart,
+                            value: changePart,
+                            position: { x: 50, y: 50 },
+                            createdAt: Date.now(),
+                            duration: 2000
+                        });
+                    }
+                }
 
                 return {
                     ...prev,
-                    player1: isP1 ? p : prev.player1,
-                    player2: !isP1 ? p : prev.player2,
+                    player1: isP1 ? updatedP : prev.player1,
+                    player2: !isP1 ? updatedP : prev.player2,
+                    activeVisualEffects: newEffects,
                     gameLog: [...prev.gameLog, {
                         id: Date.now(),
                         message: msg,
                         privateMsg: '',
                         publicMsg: '',
-                        actorId: p.id as 'player1' | 'player2',
+                        actorId: updatedP.id as 'player1' | 'player2',
                         turn: prev.turnNumber,
                         type: 'heal' as const,
                         timestamp: Date.now()
                     }]
                 };
-            }
-            return prev;
-        });
-        if (soundManager) soundManager.playSFX('success'); // 'heal' not in audio types
+            });
+        }
     };
 
     // --- LOBBY ACTIONS ---
@@ -592,7 +615,12 @@ export function useGameState() {
 
             // 5. Consume Cards
             const defenseConsumed = card.type !== 'Garam' && defendingCard.id !== 'def-0'; // Garam doesn't consume trap normally unless specified
-            const newDefenderHand = result.cardGenerated ? [...defender.hand, result.cardGenerated] : defender.hand;
+            let newDefenderHand = result.cardGenerated ? [...defender.hand, result.cardGenerated] : defender.hand;
+
+            // [NEW] Add Extra Card (Water)
+            if (result.extraCard) {
+                newDefenderHand.push(result.extraCard);
+            }
 
             // 6. Buffer Logic (New)
             if (result.isBuffer) {
@@ -707,6 +735,17 @@ export function useGameState() {
             // Add Result
             const newCard = { ...targetCard, id: `syn-${Date.now()}` };
             newHand.push(newCard);
+
+            // [NEW] Salt Synthesis Bonus (Acid + Base -> Salt + Water)
+            if (targetCard.type === 'Garam') {
+                // Synthesizing a Salt usually implies Neutralization rxn logic was simulated via cost
+                // Grant Water Card
+                const waterCard = sintesisCards.find(c => c.id === 'sin-water');
+                if (waterCard) {
+                    newHand.push({ ...waterCard, id: `water-bonus-${Date.now()}` });
+                    onNotify({ message: "Sintesis Garam menghasilkan produk sampingan Air!", type: 'success' });
+                }
+            }
 
             p.currentE -= finalECost;
             p.currentM -= cost;
@@ -1014,8 +1053,9 @@ export function useGameState() {
             p2.hand.push(p2.deck.pop()!);
         }
 
-        // 2. Resource Regeneration (P1 gets +3 Energy)
+        // 2. Resource Regeneration (P1 gets +3 Energy & +4 Mass)
         activeState.player1.currentE = Math.min(activeState.player1.maxE, activeState.player1.currentE + 3);
+        activeState.player1.currentM = Math.min(activeState.player1.maxM, activeState.player1.currentM + 4);
 
         // 2b. AI Passive Bonus (pH Stability check for AI before turn end)
         const aiPH = activeState.player2.ph;
@@ -1035,8 +1075,7 @@ export function useGameState() {
             });
         }
 
-        // Also regenerate Mass as per original logic
-        activeState.player2.currentM = Math.min(activeState.player2.maxM, activeState.player2.currentM + 1);
+        // (Combined above)
 
         // 3. Switch Turn
         activeState.currentPlayer = 'player1';
