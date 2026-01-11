@@ -19,9 +19,19 @@ import { Perpustakaan as LibraryModal } from './Perpustakaan';
 import { useGameSettings } from '../../lib/SettingsContext';
 import { soundManager } from '../../lib/audio';
 import { TouchDragPolyfill } from './TouchPolyfill';
+import { LandscapeOverlay } from './LandscapeOverlay';
+import { ErrorBoundary } from '../ErrorBoundary';
 
 // --- FULL RESPONSIVE COMPONENT ---
 export default function GameInterface() {
+    return (
+        <ErrorBoundary>
+            <GameInterfaceContent />
+        </ErrorBoundary>
+    );
+}
+
+function GameInterfaceContent() {
     const {
         gameState,
         myId,
@@ -63,40 +73,14 @@ export default function GameInterface() {
     const channelRef = useRef<any>(null);
 
     // --- MOBILE SCALING LOGIC ---
-    const BASE_HEIGHT = 768;
-    const [dimensions, setDimensions] = useState({ width: 1366, height: BASE_HEIGHT });
-    const [scale, setScale] = useState(1);
+    // --- RESPONSIVE LAYOUT STATE ---
     const [isNarrow, setIsNarrow] = useState(false);
 
     useEffect(() => {
         const handleResize = () => {
-            const w = window.innerWidth;
-            const h = window.innerHeight;
-
-            const currentRatio = w / h;
-            const narrow = w < 1366;
-            setIsNarrow(narrow);
-
-            let targetWidth, targetHeight;
-            let computedScale;
-
-            if (narrow) {
-                const MIN_MOBILE_WIDTH = 768;
-                targetWidth = Math.max(MIN_MOBILE_WIDTH, w);
-                targetHeight = targetWidth / currentRatio;
-                computedScale = w / targetWidth;
-            } else {
-                const BASE_DESC_HEIGHT = 768;
-                targetHeight = BASE_DESC_HEIGHT;
-                targetWidth = BASE_DESC_HEIGHT * currentRatio;
-                targetWidth = Math.max(1366, targetWidth);
-                const scaleX = w / targetWidth;
-                const scaleY = h / targetHeight;
-                computedScale = Math.min(scaleX, scaleY);
-            }
-
-            setDimensions({ width: targetWidth, height: targetHeight });
-            setScale(computedScale);
+            // switch to mobile sidebar layout only on very small screens
+            // User requested desktop layout on mobile landscape, so we keep threshold low
+            setIsNarrow(window.innerWidth < 600);
         };
 
         window.addEventListener('resize', handleResize);
@@ -218,16 +202,9 @@ export default function GameInterface() {
     return (
         <div className={`fixed inset-0 bg-black flex items-center justify-center select-none ${isNarrow ? 'overflow-y-auto items-start' : 'overflow-hidden'}`}>
             <TouchDragPolyfill />
+            {isNarrow && <LandscapeOverlay />}
             <div
-                style={{
-                    width: dimensions.width,
-                    height: isNarrow ? 'auto' : dimensions.height,
-                    minHeight: isNarrow ? dimensions.height : undefined,
-                    transform: `scale(${scale})`,
-                    transformOrigin: isNarrow ? 'top center' : 'center',
-                    marginBottom: 0
-                }}
-                className={`relative bg-slate-950 shadow-2xl flex flex-col transition-transform duration-300 ${isNarrow ? '' : 'origin-center overflow-hidden'}`}
+                className={`relative w-full h-full bg-slate-950 shadow-2xl flex flex-col ${isNarrow ? '' : 'overflow-hidden'}`}
             >
                 {notification && <div className={`fixed top-20 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full text-white font-bold shadow-xl border animate-in slide-in-from-top-4 z-[100] ${notification.type === 'error' ? 'bg-red-600' : 'bg-blue-600'} `}>{notification.message}</div>}
 

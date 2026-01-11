@@ -33,7 +33,7 @@ export function ActionLog({ actions, myId }: { actions: LogEntry[], myId: string
     const scrollRef = useRef<HTMLDivElement>(null);
     useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [actions]);
     return (
-        <div className="bg-black/40 rounded-xl p-3 h-full overflow-y-auto border border-slate-800 font-mono text-xs space-y-1 scrollbar-thin" ref={scrollRef}>
+        <div className="bg-black/40 rounded-xl p-3 flex-1 min-h-0 w-full overflow-y-auto border border-slate-800 font-mono text-xs space-y-1 scrollbar-thin" ref={scrollRef}>
             {actions.map((log) => {
                 const isMe = log.actorId === myId;
                 const isSystem = log.actorId === 'system';

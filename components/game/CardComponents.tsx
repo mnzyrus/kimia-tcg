@@ -67,7 +67,7 @@ export function DraggableCard({ card, index, source, onMoveToHand, isSelected, o
             onDragEnd={() => setIsDragging(false)}
             onClick={onClick}
             onDoubleClick={onDoubleClick || (() => onMoveToHand && onMoveToHand(index))}
-            className={`relative w-24 h-36 rounded-lg border-2 p-2 flex flex-col justify-between select-none cursor-grab active:cursor-grabbing transition-all hover:scale-105 shadow-lg ${getTypeColor()} ${opacityClass} ${isDragging ? 'opacity-0' : ''}`}
+            className={`relative w-24 h-36 rounded-lg border-2 p-2 flex flex-col justify-between select-none cursor-grab active:cursor-grabbing touch-none transition-all hover:scale-105 shadow-lg ${getTypeColor()} ${opacityClass} ${isDragging ? 'opacity-0' : ''}`}
         >
             <div className="flex justify-between items-start">
                 <h3 className="text-[10px] font-bold leading-tight text-white truncate w-14 m-0">{card.name}</h3>

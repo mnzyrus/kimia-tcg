@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS: GameSettings = {
     quality: 'high',
     cardTilt: true,
     gameSpeed: 'normal',
-    apiKey: 'AIzaSyCxU7FeDjWQzIAlaMb4xpqr6LkNiHwKfQs',
+    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '',
     language: 'ms',
     showTutorial: true,
 };
